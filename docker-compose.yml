@@ -1,0 +1,68 @@
+version: '3.8'
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    ports:
+      - "5000:5000"
+    networks:
+      - app-network
+    env_file:
+      - .env
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    ports:
+      - "3000:3000"
+    networks:
+      - app-network
+    depends_on:
+      - server
+      - ollama-api
+    env_file:
+      - .env
+
+  ollama-api:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities:
+                - gpu
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - 11434:11434
+    networks:
+      - app-network
+    container_name: ollama-api
+    pull_policy: always
+    tty: true
+    image: ollama/ollama:latest
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      - app-network
+    depends_on:
+      - server
+      - client
+      - ollama-api
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  ollama:
+    name: ollama-webui_ollama
+    external: true
