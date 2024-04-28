@@ -5,7 +5,7 @@ if [[ -f .env ]]; then
     export $(cat .env | xargs)
 fi
 
-# Create a virtual environment and install the dependencies
+# Create a virtual environment and install the server dependencies
 cd ./server
 python3 -m venv venv
 source venv/bin/activate

@@ -1,2 +1,5 @@
 server/venv
+server/data
+server/src/__pycache__
+server/src/.pytest_cache
 .env

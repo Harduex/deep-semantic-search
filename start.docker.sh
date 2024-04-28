@@ -6,6 +6,6 @@ if [[ -f .env ]]; then
 fi
 
 # Build and start the containers
-docker-compose up -d --build
+docker compose up -d --build
 docker exec -it ollama-api ollama pull $OLLAMA_LLM_MODEL
 echo "Model $OLLAMA_LLM_MODEL pulled successfully!"
