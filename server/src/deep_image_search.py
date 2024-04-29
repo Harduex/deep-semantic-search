@@ -13,7 +13,7 @@ from transformers import BlipProcessor, BlipForConditionalGeneration
 import shutil
 from transformers import CLIPProcessor, CLIPModel
 
-from langchain.chat_models import ChatOllama
+from langchain_community.chat_models import ChatOllama
 from langchain.schema import HumanMessage, SystemMessage
 import re
 import ast

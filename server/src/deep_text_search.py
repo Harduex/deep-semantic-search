@@ -3,6 +3,11 @@ import pandas as pd
 from sentence_transformers import SentenceTransformer, util
 import numpy as np
 import pickle
+from bs4 import BeautifulSoup
+
+# Custom implementation of DeepTextSearch python package including:
+# - loading from folder with text files
+# - extracting hard-coded values to constants
 
 EMBEDDINGS_MODEL = "sentence-transformers/nli-mpnet-base-v2"
 EMBEDDING_DATA_DIR = "./data/nli-mpnet-base-v2_metadata"
@@ -10,14 +15,26 @@ CORPUS_LIST_DATA_FILE = "corpus_list_data.pickle"
 CORPUS_EMBEDDINGS_DATA_FILE = "corpus_embeddings_data.pickle"
 
 
-class LoadData:
+class LoadTextData:
     def __init__(self):
-        self.corpus_list = None
+        self.corpus_list = []
 
     def from_csv(self, file_path: str):
         csv_data = pd.read_csv(file_path)
         column_name = str(input("Input the text Column Name Please ? : "))
         self.corpus_list = csv_data[column_name].dropna().to_list()
+        return self.corpus_list
+
+    def from_folder(self, folder_path: str):
+        for dirpath, dirnames, filenames in os.walk(folder_path):
+            for filename in filenames:
+                if filename.endswith(".txt"):
+                    with open(os.path.join(dirpath, filename), "r") as file:
+                        self.corpus_list.append(file.read())
+                elif filename.endswith(".html"):
+                    with open(os.path.join(dirpath, filename), "r") as file:
+                        soup = BeautifulSoup(file, "html.parser")
+                        self.corpus_list.append(soup.get_text())
         return self.corpus_list
 
 
@@ -31,11 +48,14 @@ class TextEmbedder:
         self.embedder = SentenceTransformer(EMBEDDINGS_MODEL)
         self.corpus_embeddings = None
         if EMBEDDING_DATA_DIR not in os.listdir():
-            os.makedirs(EMBEDDING_DATA_DIR)
+            try:
+                os.makedirs(EMBEDDING_DATA_DIR)
+            except OSError as e:
+                print(e)
 
-    def embed(self, corpus_list: list):
+    def embed(self, corpus_list: list, reindex=False):
         self.corpus_list = corpus_list
-        if len(os.listdir(EMBEDDING_DATA_DIR)) == 0:
+        if len(os.listdir(EMBEDDING_DATA_DIR)) == 0 or reindex:
             self.corpus_embeddings = self.embedder.encode(
                 self.corpus_list, convert_to_tensor=True, show_progress_bar=True
             )
@@ -97,6 +117,6 @@ class TextSearch:
             data_out = {}
             data_out["index"] = int(idx)
             data_out["text"] = self.data[idx]
-            data_out["score"] = self.cos_scores[idx]
+            data_out["score"] = float(self.cos_scores[idx])
             self.all_data.append(data_out)
         return self.all_data
