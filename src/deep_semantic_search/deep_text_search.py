@@ -17,25 +17,26 @@ CORPUS_EMBEDDINGS_DATA_FILE = "corpus_embeddings_data.pickle"
 
 class LoadTextData:
     def __init__(self):
-        self.corpus_list = []
+        self.corpus_dict = {}
 
     def from_csv(self, file_path: str):
-        csv_data = pd.read_csv(file_path)
+        csv_data = pd.read_csv(file_path, encoding="latin1")
         column_name = str(input("Input the text Column Name Please ? : "))
-        self.corpus_list = csv_data[column_name].dropna().to_list()
-        return self.corpus_list
+        self.corpus_dict = csv_data[column_name].dropna().to_dict()
+        return self.corpus_dict
 
     def from_folder(self, folder_path: str):
         for dirpath, dirnames, filenames in os.walk(folder_path):
             for filename in filenames:
+                file_path = os.path.join(dirpath, filename)
                 if filename.endswith(".txt"):
-                    with open(os.path.join(dirpath, filename), "r") as file:
-                        self.corpus_list.append(file.read())
+                    with open(file_path, "r") as file:
+                        self.corpus_dict[file_path] = file.read()
                 elif filename.endswith(".html"):
-                    with open(os.path.join(dirpath, filename), "r") as file:
+                    with open(file_path, "r") as file:
                         soup = BeautifulSoup(file, "html.parser")
-                        self.corpus_list.append(soup.get_text())
-        return self.corpus_list
+                        self.corpus_dict[file_path] = soup.get_text()
+        return self.corpus_dict
 
 
 class TextEmbedder:
@@ -53,14 +54,16 @@ class TextEmbedder:
             except OSError as e:
                 print(e)
 
-    def embed(self, corpus_list: list, reindex=False):
-        self.corpus_list = corpus_list
+    def embed(self, corpus_dict: dict, reindex=False):
+        self.corpus_dict = corpus_dict
         if len(os.listdir(EMBEDDING_DATA_DIR)) == 0 or reindex:
             self.corpus_embeddings = self.embedder.encode(
-                self.corpus_list, convert_to_tensor=True, show_progress_bar=True
+                list(self.corpus_dict.values()),
+                convert_to_tensor=True,
+                show_progress_bar=True,
             )
             pickle.dump(self.corpus_embeddings, open(self.corpus_embeddings_data, "wb"))
-            pickle.dump(self.corpus_list, open(self.corpus_list_data, "wb"))
+            pickle.dump(self.corpus_dict, open(self.corpus_list_data, "wb"))
             print("Embedding data Saved Successfully!")
             print(os.listdir(EMBEDDING_DATA_DIR))
         else:
@@ -101,7 +104,8 @@ class TextSearch:
         for idx in self.sort_list[1 : self.top_n + 1]:
             data_out = {}
             data_out["index"] = int(idx)
-            data_out["text"] = self.data[idx]
+            data_out["text"] = list(self.data.values())[idx]
+            data_out["path"] = list(self.data.keys())[idx]
             data_out["score"] = float(self.cos_scores[idx])
             self.all_data.append(data_out)
         return self.all_data
