@@ -9,7 +9,8 @@ from deep_semantic_search import (
 import os
 from werkzeug.utils import secure_filename
 
-# Global variable to store the search engine setup
+DEFAULT_SEARCH_FOLDER_PATH = ""
+
 image_search_setup = None
 
 
@@ -34,21 +35,25 @@ def index(folder_path, image_count=None, reindex=True):
         return str(e)
 
 
-def search_similar_images(image, number_of_images=5):
+def search_from_image(image_file_path, number_of_images=5):
     global image_search_setup
 
     try:
         number_of_images = int(number_of_images) if number_of_images else 5
 
-        filename = secure_filename(image.name)
-        image.save(os.path.join("./data", filename))
-
-        query_image_path = os.path.join("./data", filename)
+        # Search for similar images to the query image
         similar_images = image_search_setup.get_similar_images(
-            query_image_path, number_of_images
+            image_file_path, number_of_images
         )
 
-        return similar_images
+        # Search for similar texts to the query image
+        query_image_caption = image_search_setup.caption_images(
+            [image_file_path])
+        TextEmbedder().load_embedding()
+        similar_texts = TextSearch().find_similar(
+            query_image_caption["caption"][0])
+
+        return similar_images, similar_texts
     except Exception as e:
         return str(e)
 
@@ -68,10 +73,7 @@ def search_from_text(text, number_of_images=5):
         TextEmbedder().load_embedding()
         similar_texts = TextSearch().find_similar(text)
 
-        return {
-            "images": similar_images,
-            "texts": similar_texts,
-        }
+        return similar_images, similar_texts
     except Exception as e:
         return str(e)
 
@@ -81,6 +83,7 @@ def cluster_images(n_clusters):
 
     try:
         n_clusters = int(n_clusters)
+        clusters_paths = []
 
         # Cluster the images
         image_search_setup.cluster_images(n_clusters)
@@ -98,8 +101,9 @@ def cluster_images(n_clusters):
             )
             new_folder_name = f"./data/clusters/{i}_{best_topics[0]}"
             os.rename(f"./data/clusters/{i}", new_folder_name)
+            clusters_paths.append(new_folder_name)
 
-        return "Images clustered successfully"
+        return clusters_paths
     except Exception as e:
         return str(e)
 
@@ -109,10 +113,9 @@ def get_cluster_images(cluster_id):
 
     try:
         cluster_id = int(cluster_id)
+        img_paths = image_search_setup.get_clustered_images(cluster_id)
+        return img_paths
 
-        img_list = image_search_setup.get_clustered_images(cluster_id)
-
-        return img_list
     except Exception as e:
         return str(e)
 
@@ -121,8 +124,8 @@ def get_cluster_images(cluster_id):
 indexing_interface = gr.Interface(
     fn=index,
     inputs=[
-        gr.Textbox(label="Folder Path"),
-        gr.Textbox(label="Image Count (Optional)"),
+        gr.Textbox(label="Folder Path", value=DEFAULT_SEARCH_FOLDER_PATH),
+        gr.Textbox(label="Files Count (Leave blank for all)"),
         gr.Checkbox(label="Reindex"),
     ],
     outputs="text",
@@ -131,25 +134,32 @@ indexing_interface = gr.Interface(
 )
 
 search_interface = gr.Interface(
-    fn=search_similar_images,
+    fn=search_from_image,
     inputs=[
-        gr.Image(label="Query Image"),
-        gr.Textbox(label="Number of Images"),
+        gr.Image(label="Query Image", type="filepath"),
+        gr.Textbox(label="Number of Results", value="5"),
     ],
-    outputs="image",
-    title="Search Similar Images Interface",
-    description="Search for similar images to the query image",
+    outputs=[
+        # gr.Image(label="Similar Images"),
+        gr.Textbox(label="Similar Images"),
+        gr.Textbox(label="Similar Texts"),
+    ],
+    title="Search from Image Interface",
+    description="Search for similar images and texts from an image query",
 )
 
 search_text_interface = gr.Interface(
     fn=search_from_text,
     inputs=[
         gr.Textbox(label="Text"),
-        gr.Textbox(label="Number of Images"),
+        gr.Textbox(label="Number of Results", value="5"),
     ],
-    outputs=["image", "text"],
+    outputs=[
+        gr.Textbox(label="Similar Images"),
+        gr.Textbox(label="Similar Texts"),
+    ],
     title="Search from Text Interface",
-    description="Search for similar images and texts to the query text",
+    description="Search for similar images and texts from a text query",
 )
 
 clustering_interface = gr.Interface(
@@ -163,14 +173,30 @@ clustering_interface = gr.Interface(
 get_cluster_images_interface = gr.Interface(
     fn=get_cluster_images,
     inputs=gr.Textbox(label="Cluster ID"),
-    outputs="image",
+    outputs=[
+        # gr.Gallery(label="Cluster Images", ),
+        gr.Textbox(label="Cluster Images"),
+    ],
     title="Get Cluster Images Interface",
     description="Get images from a specific cluster",
 )
 
+main_interface = gr.TabbedInterface(
+    [
+        indexing_interface,
+        search_interface,
+        search_text_interface,
+        clustering_interface,
+        get_cluster_images_interface,
+    ],
+    [
+        "Indexing",
+        "Search From Image",
+        "Search From Text",
+        "Images Clustering",
+        "Get Cluster Images",
+    ],
+)
+
 if __name__ == "__main__":
-    indexing_interface.launch()
-    search_interface.launch()
-    search_text_interface.launch()
-    clustering_interface.launch()
-    get_cluster_images_interface.launch()
+    main_interface.launch()
