@@ -1,5 +1,8 @@
-server/venv
-server/data
-server/src/__pycache__
-server/src/.pytest_cache
 .env
+venv
+data
+src/__pycache__
+src/.pytest_cache
+experiments/datasets/**
+src/deep_semantic_search/__pycache__
+src/tests/__pycache__

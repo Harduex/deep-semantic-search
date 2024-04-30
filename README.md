@@ -1,60 +1,50 @@
-### System Overview:
-The system is designed to be a comprehensive note-taking and information management platform, leveraging advanced machine learning techniques to enhance user interaction and data organization. This system aims to provide a seamless and intelligent experience for managing and interacting with personal or professional notes and documents.
+# Deep Semantic Search
+This system is designed for embedding, indexing and applying semantic search for personal folders with any text and image data inside. <br>
+The system is able to process, analyze and visualize the data. The user can interact with the system via web user interface.
 
-### Components:
-**Semantic Search (Txtai)**:
-   - Utilizes embeddings for text and image search.
-   - Incorporates an additional keyword search feature.
+## Components:
+**Multi-modal [Semantic Search](https://en.wikipedia.org/wiki/Semantic_search) (Custom [DeepImageSearch](https://github.com/TechyNilesh/DeepImageSearch) and [DeepTextSearch](https://github.com/TechyNilesh/DeepTextSearch), [CLIP](https://openai.com/research/clip), [nli-mpnet-base-v2](https://huggingface.co/sentence-transformers/nli-mpnet-base-v2))**:
+   - Embedding and indexing the text data using the nli-mpnet-base-v2 model.
+   - Embedding and indexing the image data using the CLIP model.
+   - Semantic search for text and image data (searching images by both image and text as a query).
+   - Additional keyword text search feature for better search results. 
 
-**Open Source LLMs API (Ollama)**:
-   - Reads, formats, and summarizes search results.
-   - Answers questions based on the dataset.
+**Clustering and Image Captioning ([KMeans](https://github.com/subhadarship/kmeans_pytorch), [BLIP](https://huggingface.co/Salesforce/blip-image-captioning-large))**:
+   - Clustering the image embeddings using PyTorch KMeans implementation (for a GPU support).
+   - Image captioning using BLIP model.
 
-**Data Management and Processing (Pandas, LangChain)**:
-   - Supports various data formats including Google Keep exports, documents, and data frames.
-   - Uses Retrieval-Augmented Generation (RAG) for processing.
+**Retrieval-Augmented Generation [RAG](https://blogs.nvidia.com/blog/what-is-retrieval-augmented-generation/) ([Ollama](https://github.com/ollama/ollama), [Docker](https://www.docker.com/))**:
+   - Using local instance of Ollama API to run open-source LLM models. (running with docker-compose)
+   - Answering questions based on the search results.
+   - Summarizing the search results.
+   - Picking topics for provided image captions.
 
-**Automatic Text Processing (Scikit-Learn, PyTorch)**:
-   - Features automatic labeling of text and zero-shot topic classification.
-   - Employs t-SNE for thematic grouping of notes.
-   - Utilizes Top2Vec for topic modelling.
-   - Sentiment Analysis for each topic or note.
+**Web User Interface ([Gradio](https://www.gradio.app/))**:
+   - Allows the user to interact with the system.
 
-**Web Search Integration (LangChain Agents, Searx)**:
-   - Uses the Searx engine and LangChain Agents for extended web searches.
-   - Provides a daily random note/quote feature.
-
-**Visualization Tools (Plotly, Matplotlib)**:
-   - Generates visual representations like charts and word clouds.
+**Visualization Tools ([Plotly](https://plotly.com/), [Matplotlib](https://matplotlib.org/))**:
+   - Visualizing the data and the results.
    - Enables exploration of topic relationships through semantic graphs.
-   - Visualization of changes in topics over time (Topic Evolution Tracking).
+   - Applying PCA dimensionality reduction for 2D and 3D visualizations of the clusters embeddings.
 
-**Topics Suggestion and Summarization**:
-   - Groups similar notes together and adds LLM-generated summaries.
-   - Offers internet search integration for new and related topics suggestion.
-
-**Web User Interface (Next.js, React)**:
-   - Google Keep-inspired web UI with a simple search box and results display.
-   - Allows for UI customization by forking existing designs.
-
-**Backend API (Flask, Python)**:
+**Backend API support ([Flask](https://github.com/pallets/flask))**:
    - Provides RESTful API for data retrieval and processing.
    - Supports data export and import functionalities.
 
-**Deployment (Docker, Docker Compose)**:
-    - Packages the application and services using Docker.
+## Installation:
 
-### Run with docker:
+### Configuration:
 ```bash
-./start.docker.sh
+cp .env.example .env
 ```
 
-### Local development:
+### Start the system:
 ```bash
-./start.local.sh
+./start.sh
 ```
 
-### Example .env file:
+### Run tests:
 ```bash
-OLLAMA_LLM_MODEL=mistral:7b
+cd src
+pytest
 ```
