@@ -9,25 +9,25 @@ from deep_semantic_search import (
 import os
 from werkzeug.utils import secure_filename
 
-DEFAULT_SEARCH_FOLDER_PATH = ""
+DEFAULT_SEARCH_FOLDER_PATH = os.getenv("DEFAULT_SEARCH_FOLDER_PATH")
 
 image_search_setup = None
 
 
-def index(folder_path, image_count=None, reindex=True):
+def index(folder_path, files_count=None, reindex=True):
     global image_search_setup
 
     try:
-        image_count = int(image_count) if image_count else None
+        files_count = int(files_count) if files_count else None
 
         # Index the images
         load_data = LoadImageData()
         image_list = load_data.from_folder([folder_path], shuffle=True)
-        image_search_setup = ImageSearch(image_list, image_count=image_count)
+        image_search_setup = ImageSearch(image_list, image_count=files_count)
         image_search_setup.run_index(reindex)
 
         # Index the text data
-        corpus_list = LoadTextData().from_folder(folder_path)
+        corpus_list = LoadTextData().from_folder(folder_path, corpus_count=files_count)
         TextEmbedder().embed(corpus_list, reindex)
 
         return "Images and texts indexed successfully"

@@ -1,8 +1,9 @@
+import os
 import requests
 
 BASE_URL = "http://localhost:5000"
-FOLDER_PATH = "/home/simeon/mnt/Files/Projects/Programming/IT Step/AI_2023/experiments/datasets/combined"
-IMAGE_PATH = "/home/simeon/mnt/Files/Projects/Programming/IT Step/AI_2023/experiments/datasets/combined/images/strawberry/image_0022.jpg"
+FOLDER_PATH = os.getenv("DEFAULT_SEARCH_FOLDER_PATH")
+IMAGE_PATH = f"${FOLDER_PATH}/images/strawberry/image_0022.jpg"
 IMAGE_COUNT = 1000
 NUMBER_OF_IMAGES = 5
 TEXT = "cat"

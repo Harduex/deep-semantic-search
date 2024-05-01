@@ -18,10 +18,6 @@ from langchain.schema import HumanMessage, SystemMessage
 import re
 import ast
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 # Custom implementation of DeepImageSearch python package including:
 # - Porting the training to work with GPU
 # - Added shuffle parameter to the from_folder method in LoadImageData class to shuffle the image paths before returning

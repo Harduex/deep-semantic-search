@@ -25,17 +25,22 @@ class LoadTextData:
         self.corpus_dict = csv_data[column_name].dropna().to_dict()
         return self.corpus_dict
 
-    def from_folder(self, folder_path: str):
+    def from_folder(self, folder_path: str, corpus_count: int = None):
+        count = 0
         for dirpath, dirnames, filenames in os.walk(folder_path):
             for filename in filenames:
+                if corpus_count is not None and count >= corpus_count:
+                    return self.corpus_dict
                 file_path = os.path.join(dirpath, filename)
                 if filename.endswith(".txt"):
                     with open(file_path, "r") as file:
                         self.corpus_dict[file_path] = file.read()
+                        count += 1
                 elif filename.endswith(".html"):
                     with open(file_path, "r") as file:
                         soup = BeautifulSoup(file, "html.parser")
                         self.corpus_dict[file_path] = soup.get_text()
+                        count += 1
         return self.corpus_dict
 
 
