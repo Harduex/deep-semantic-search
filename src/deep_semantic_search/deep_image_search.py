@@ -377,6 +377,7 @@ class ImageSearch:
     def cluster_images(self, n_clusters: int):
         """
         Clusters the indexed images into the specified number of clusters.
+        Assigns a topic to each cluster based on the captions of a set of images in the cluster.
 
         Parameters:
         -----------
@@ -399,6 +400,17 @@ class ImageSearch:
         )
 
         self.image_data["cluster"] = cluster_ids_x.cpu().numpy()
+
+        for i in range(n_clusters):
+            cluster_images = self.get_clustered_images(i)
+            captioned_images = self.caption_images(cluster_images[:15])
+
+            best_topics = self.get_best_topics(captioned_images["caption"].to_list())
+
+            self.image_data.loc[self.image_data["cluster"] == i, "topic"] = best_topics[
+                0
+            ]
+
         return self.image_data
 
     def get_clustered_images(self, cluster_id: int):
@@ -445,7 +457,7 @@ class ImageSearch:
 
     def save_clustered_images(self, save_dir: str):
         """
-        Saves the images in each cluster to a folder with the cluster number.
+        Saves the images in each cluster to a folder with the cluster in format: {id}_{type}.
 
         Parameters:
         -----------
@@ -454,11 +466,13 @@ class ImageSearch:
         """
         self.save_dir = save_dir
         os.makedirs(self.save_dir, exist_ok=True)
-        for i in range(self.n_clusters):
-            os.makedirs(f"{self.save_dir}/{i}", exist_ok=True)
-            cl = self.image_data[self.image_data["cluster"] == i]
-            for j in cl["images_paths"]:
-                shutil.copy(j, f"{self.save_dir}/{i}")
+        for cluster_id in self.image_data["cluster"].unique():
+            cluster_data = self.image_data[self.image_data["cluster"] == cluster_id]
+            for topic in cluster_data["topic"].unique():
+                topic_dir = f"{self.save_dir}/{cluster_id}_{topic}"
+                os.makedirs(topic_dir, exist_ok=True)
+                for j in cluster_data[cluster_data["topic"] == topic]["images_paths"]:
+                    shutil.copy(j, topic_dir)
 
     def caption_images(self, images_paths: list, starting_text: str = "This is a"):
         """

@@ -30,7 +30,7 @@ def index(folder_path, files_count=None, reindex=True):
         corpus_list = LoadTextData().from_folder(folder_path, corpus_count=files_count)
         TextEmbedder().embed(corpus_list, reindex)
 
-        return "Images and texts indexed successfully"
+        return "Indexing Successful!"
     except Exception as e:
         return str(e)
 
@@ -47,11 +47,9 @@ def search_from_image(image_file_path, number_of_images=5):
         )
 
         # Search for similar texts to the query image
-        query_image_caption = image_search_setup.caption_images(
-            [image_file_path])
+        query_image_caption = image_search_setup.caption_images([image_file_path])
         TextEmbedder().load_embedding()
-        similar_texts = TextSearch().find_similar(
-            query_image_caption["caption"][0])
+        similar_texts = TextSearch().find_similar(query_image_caption["caption"][0])
 
         return similar_images, similar_texts
     except Exception as e:
@@ -78,32 +76,17 @@ def search_from_text(text, number_of_images=5):
         return str(e)
 
 
-def cluster_images(n_clusters):
+def cluster_images(n_clusters, save=False):
     global image_search_setup
 
     try:
         n_clusters = int(n_clusters)
-        clusters_paths = []
+        image_data = image_search_setup.cluster_images(n_clusters)
 
-        # Cluster the images
-        image_search_setup.cluster_images(n_clusters)
-        image_search_setup.save_clustered_images("./data/clusters")
+        if save:
+            image_search_setup.save_clustered_images("./data/clusters")
 
-        # Caption the first 15 images in each cluster
-        for i in range(n_clusters):
-            cluster_images = image_search_setup.get_clustered_images(i)
-            captioned_images = image_search_setup.caption_images(
-                cluster_images[:15])
-
-            # Get the best topic for the first 15 images in each cluster
-            best_topics = image_search_setup.get_best_topics(
-                captioned_images["caption"].to_list()
-            )
-            new_folder_name = f"./data/clusters/{i}_{best_topics[0]}"
-            os.rename(f"./data/clusters/{i}", new_folder_name)
-            clusters_paths.append(new_folder_name)
-
-        return clusters_paths
+        return image_data.drop(columns=["features"])
     except Exception as e:
         return str(e)
 
@@ -133,7 +116,7 @@ indexing_interface = gr.Interface(
     description="Index images and texts for searching",
 )
 
-search_interface = gr.Interface(
+image_search_interface = gr.Interface(
     fn=search_from_image,
     inputs=[
         gr.Image(label="Query Image", type="filepath"),
@@ -148,7 +131,7 @@ search_interface = gr.Interface(
     description="Search for similar images and texts from an image query",
 )
 
-search_text_interface = gr.Interface(
+text_search_interface = gr.Interface(
     fn=search_from_text,
     inputs=[
         gr.Textbox(label="Text"),
@@ -164,8 +147,13 @@ search_text_interface = gr.Interface(
 
 clustering_interface = gr.Interface(
     fn=cluster_images,
-    inputs=gr.Textbox(label="Number of Clusters"),
-    outputs="text",
+    inputs=[
+        gr.Textbox(label="Number of Clusters"),
+        gr.Checkbox(label="Save Clusters"),
+    ],
+    outputs=[
+        gr.Textbox(label="Image Clusters"),
+    ],
     title="Clustering Interface",
     description="Cluster images for better organization",
 )
@@ -184,8 +172,8 @@ get_cluster_images_interface = gr.Interface(
 main_interface = gr.TabbedInterface(
     [
         indexing_interface,
-        search_interface,
-        search_text_interface,
+        image_search_interface,
+        text_search_interface,
         clustering_interface,
         get_cluster_images_interface,
     ],
