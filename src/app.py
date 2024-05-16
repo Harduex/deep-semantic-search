@@ -36,6 +36,19 @@ def index(folder_path, files_count=None, reindex=True):
         return str(e)
 
 
+indexing_interface = gr.Interface(
+    fn=index,
+    inputs=[
+        gr.Textbox(label="Folder Path", value=DEFAULT_SEARCH_FOLDER_PATH),
+        gr.Textbox(label="Files Count (Leave blank for all)"),
+        gr.Checkbox(label="Reindex"),
+    ],
+    outputs="text",
+    title="Indexing Interface",
+    description="Index images and texts for searching",
+)
+
+
 def search_from_image(image_file_path, number_of_images=5):
     global image_search_setup
 
@@ -46,15 +59,37 @@ def search_from_image(image_file_path, number_of_images=5):
         similar_images = image_search_setup.get_similar_images(
             image_file_path, number_of_images
         )
+        # Convert the dictionary to a list of tuples
+        similar_images = [
+            (path, str(similarity)) for similarity, path in similar_images.items()
+        ]
 
         # Search for similar texts to the query image
-        query_image_caption = image_search_setup.caption_images([image_file_path])
+        query_image_caption = image_search_setup.caption_images(
+            [image_file_path])
         TextEmbedder().load_embedding()
-        similar_texts = TextSearch().find_similar(query_image_caption["caption"][0])
+        similar_texts = TextSearch().find_similar(
+            query_image_caption["caption"][0])
 
         return similar_images, similar_texts
     except Exception as e:
         return str(e)
+
+
+image_search_interface = gr.Interface(
+    fn=search_from_image,
+    inputs=[
+        gr.Image(label="Query Image", type="filepath"),
+        gr.Textbox(label="Number of Results", value="5"),
+    ],
+    outputs=[
+        gr.Gallery(
+            label="Generated images", show_label=False, elem_id="gallery", columns=[3], rows=[1], object_fit="contain", height="auto"),
+        gr.Textbox(label="Similar Texts"),
+    ],
+    title="Search from Image Interface",
+    description="Search for similar images and texts from an image query",
+)
 
 
 def search_from_text(text, number_of_images=5):
@@ -77,6 +112,23 @@ def search_from_text(text, number_of_images=5):
         return str(e)
 
 
+text_search_interface = gr.Interface(
+    fn=search_from_text,
+    inputs=[
+        gr.Textbox(label="Text"),
+        gr.Textbox(label="Number of Results", value="5"),
+    ],
+    outputs=[
+        gr.Gallery(
+            label="Generated images", show_label=False, elem_id="gallery", columns=[3], rows=[1], object_fit="contain", height="auto"),
+        # gr.Textbox(label="Similar Images"),
+        gr.Textbox(label="Similar Texts"),
+    ],
+    title="Search from Text Interface",
+    description="Search for similar images and texts from a text query",
+)
+
+
 def cluster_images(n_clusters, save=False):
     global image_search_setup
 
@@ -92,75 +144,6 @@ def cluster_images(n_clusters, save=False):
         return str(e)
 
 
-def get_cluster_images(cluster_id):
-    global image_search_setup
-
-    try:
-        cluster_id = int(cluster_id)
-        img_paths = image_search_setup.get_clustered_images(cluster_id)
-        return img_paths
-
-    except Exception as e:
-        return str(e)
-
-
-def chat_with_your_data(question):
-    similar_images, similar_texts = search_from_text(question, 1000)
-    text_results = [result["text"] for result in similar_texts]
-
-    # Uncomment the following code to caption the images and include them in the context
-    # image_paths = {key: value for key, value in similar_images.items()}
-    # image_captions = image_search_setup.caption_images(image_paths, "")
-    # image_results = list(image_captions["caption"])
-    # context = text_results + image_results
-    
-    context = text_results
-    answer = ask_question(context, question)
-
-    return answer
-
-# Gradio UI
-indexing_interface = gr.Interface(
-    fn=index,
-    inputs=[
-        gr.Textbox(label="Folder Path", value=DEFAULT_SEARCH_FOLDER_PATH),
-        gr.Textbox(label="Files Count (Leave blank for all)"),
-        gr.Checkbox(label="Reindex"),
-    ],
-    outputs="text",
-    title="Indexing Interface",
-    description="Index images and texts for searching",
-)
-
-image_search_interface = gr.Interface(
-    fn=search_from_image,
-    inputs=[
-        gr.Image(label="Query Image", type="filepath"),
-        gr.Textbox(label="Number of Results", value="5"),
-    ],
-    outputs=[
-        # gr.Image(label="Similar Images"),
-        gr.Textbox(label="Similar Images"),
-        gr.Textbox(label="Similar Texts"),
-    ],
-    title="Search from Image Interface",
-    description="Search for similar images and texts from an image query",
-)
-
-text_search_interface = gr.Interface(
-    fn=search_from_text,
-    inputs=[
-        gr.Textbox(label="Text"),
-        gr.Textbox(label="Number of Results", value="5"),
-    ],
-    outputs=[
-        gr.Textbox(label="Similar Images"),
-        gr.Textbox(label="Similar Texts"),
-    ],
-    title="Search from Text Interface",
-    description="Search for similar images and texts from a text query",
-)
-
 clustering_interface = gr.Interface(
     fn=cluster_images,
     inputs=[
@@ -174,16 +157,47 @@ clustering_interface = gr.Interface(
     description="Cluster images for better organization",
 )
 
+
+def get_cluster_images(cluster_id):
+    global image_search_setup
+
+    try:
+        cluster_id = int(cluster_id)
+        img_paths = image_search_setup.get_clustered_images(cluster_id)
+        return img_paths
+
+    except Exception as e:
+        return str(e)
+
+
 get_cluster_images_interface = gr.Interface(
     fn=get_cluster_images,
     inputs=gr.Textbox(label="Cluster ID"),
     outputs=[
-        # gr.Gallery(label="Cluster Images", ),
-        gr.Textbox(label="Cluster Images"),
+        # gr.Textbox(label="Cluster Images"),
+        gr.Gallery(
+            label="Generated images", show_label=False, elem_id="gallery", columns=[3], rows=[1], object_fit="contain", height="auto"),
     ],
     title="Get Cluster Images Interface",
     description="Get images from a specific cluster",
 )
+
+
+def chat_with_your_data(question):
+    similar_images, similar_texts = search_from_text(question, 1000)
+    text_results = [result["text"] for result in similar_texts]
+
+    # Uncomment the following code to caption the images and include them in the context
+    # image_paths = {key: value for key, value in similar_images.items()}
+    # image_captions = image_search_setup.caption_images(image_paths, "")
+    # image_results = list(image_captions["caption"])
+    # context = text_results + image_results
+
+    context = text_results
+    answer = ask_question(context, question)
+
+    return answer
+
 
 chat_with_your_data_interface = gr.Interface(
     fn=chat_with_your_data,
@@ -194,6 +208,7 @@ chat_with_your_data_interface = gr.Interface(
     title="Chat with your data",
     description="Ask a question and get an answer based on your data",
 )
+
 
 main_interface = gr.TabbedInterface(
     [
