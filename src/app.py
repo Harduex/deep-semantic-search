@@ -121,7 +121,6 @@ text_search_interface = gr.Interface(
     outputs=[
         gr.Gallery(
             label="Generated images", show_label=False, elem_id="gallery", columns=[3], rows=[1], object_fit="contain", height="auto"),
-        # gr.Textbox(label="Similar Images"),
         gr.Textbox(label="Similar Texts"),
     ],
     title="Search from Text Interface",
@@ -174,7 +173,6 @@ get_cluster_images_interface = gr.Interface(
     fn=get_cluster_images,
     inputs=gr.Textbox(label="Cluster ID"),
     outputs=[
-        # gr.Textbox(label="Cluster Images"),
         gr.Gallery(
             label="Generated images", show_label=False, elem_id="gallery", columns=[3], rows=[1], object_fit="contain", height="auto"),
     ],
@@ -204,7 +202,7 @@ chat_with_your_data_interface = gr.Interface(
     inputs=[
         gr.Textbox(label="Question"),
     ],
-    outputs=gr.Textbox(label="Answer"),
+    outputs=gr.Markdown(label="Answer"),
     title="Chat with your data",
     description="Ask a question and get an answer based on your data",
 )

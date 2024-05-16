@@ -1,9 +1,10 @@
 import os
+import sys
 import requests
 
 BASE_URL = "http://localhost:5000"
 FOLDER_PATH = os.getenv("DEFAULT_SEARCH_FOLDER_PATH")
-IMAGE_PATH = f"${FOLDER_PATH}/images/strawberry/image_0022.jpg"
+IMAGE_PATH = "./assets/strawberry.jpg"
 IMAGE_COUNT = 1000
 NUMBER_OF_IMAGES = 5
 TEXT = "cat"
@@ -53,3 +54,11 @@ def test_get_cluster_images():
     assert response.status_code == 200
     assert isinstance(response.json(), dict)
     assert "images" in response.json()
+
+def test_chat_with_your_data():
+    response = requests.post(
+        f"{BASE_URL}/chat_with_your_data", json={"question": "What is the capital of France?"}
+    )
+    assert response.status_code == 200
+    assert isinstance(response.json(), dict)
+    assert "answer" in response.json()

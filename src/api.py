@@ -10,6 +10,8 @@ from flask_cors import CORS
 import os
 from werkzeug.utils import secure_filename
 
+from deep_semantic_search.rag import ask_question
+
 
 app = Flask(__name__)
 CORS(app)  # This will enable CORS for all routes
@@ -171,22 +173,12 @@ def cluster_images():
         n_clusters = data["n_clusters"]
         n_clusters = int(n_clusters)
 
-        # Cluster the images
-        image_search_setup.cluster_images(n_clusters)
-        image_search_setup.save_clustered_images("./data/clusters")
-
-        # Caption the first 15 images in each cluster
-        for i in range(n_clusters):
-            cluster_images = image_search_setup.get_clustered_images(i)
-            captioned_images = image_search_setup.caption_images(cluster_images[:15])
-            # captioned_images.to_csv(f'clusters/{i}/captions.csv', index=False)
-
-            # Get the best topic for the first 15 images in each cluster
-            best_topics = image_search_setup.get_best_topics(
-                captioned_images["caption"].to_list()
-            )
-            new_folder_name = f"./data/clusters/{i}_{best_topics[0]}"
-            os.rename(f"./data/clusters/{i}", new_folder_name)
+        try:
+            n_clusters = int(n_clusters)
+            image_search_setup.cluster_images(n_clusters)
+            image_search_setup.save_clustered_images("./data/clusters")
+        except Exception as e:
+            return str(e)
 
         return jsonify({"message": "Images clustered successfully"})
     except Exception as e:
@@ -219,6 +211,26 @@ def get_cluster_images():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+@app.route('/chat_with_your_data', methods=['POST'])
+def chat_with_your_data():
+    question = request.json.get('question')
+    
+    try:
+        # Search for similar texts to the text query
+        TextEmbedder().load_embedding()
+        similar_texts = TextSearch().find_similar(question)
+
+        text_results = [result["text"] for result in similar_texts]
+
+        context = text_results
+        answer = ask_question(context, question)
+
+        return jsonify({"answer": answer})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(debug=True)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

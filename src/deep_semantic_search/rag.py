@@ -20,4 +20,4 @@ def ask_question(text_data, question, chunk_size=1500, chunk_overlap=100, model_
     llm = Ollama(model=model_name, verbose=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]))
     qa_chain = RetrievalQA.from_chain_type(llm, retriever=vectorstore.as_retriever(), chain_type_kwargs={"prompt": prompt})
     result = qa_chain({"query": question})
-    return result
+    return result['result']

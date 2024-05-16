@@ -50,7 +50,8 @@ Access the web interface on http://127.0.0.1:7860/
 
 ### Run tests
 ```bash
-cd src
+python ./src/api.py
+cd src/tests
 pytest
 ```
 
