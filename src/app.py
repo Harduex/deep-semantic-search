@@ -7,7 +7,8 @@ from deep_semantic_search import (
     ImageSearch,
 )
 import os
-from werkzeug.utils import secure_filename
+
+from deep_semantic_search.rag import ask_question
 
 DEFAULT_SEARCH_FOLDER_PATH = os.getenv("DEFAULT_SEARCH_FOLDER_PATH")
 
@@ -103,6 +104,21 @@ def get_cluster_images(cluster_id):
         return str(e)
 
 
+def chat_with_your_data(question):
+    similar_images, similar_texts = search_from_text(question, 1000)
+    text_results = [result["text"] for result in similar_texts]
+
+    # Uncomment the following code to caption the images and include them in the context
+    # image_paths = {key: value for key, value in similar_images.items()}
+    # image_captions = image_search_setup.caption_images(image_paths, "")
+    # image_results = list(image_captions["caption"])
+    # context = text_results + image_results
+    
+    context = text_results
+    answer = ask_question(context, question)
+
+    return answer
+
 # Gradio UI
 indexing_interface = gr.Interface(
     fn=index,
@@ -169,6 +185,16 @@ get_cluster_images_interface = gr.Interface(
     description="Get images from a specific cluster",
 )
 
+chat_with_your_data_interface = gr.Interface(
+    fn=chat_with_your_data,
+    inputs=[
+        gr.Textbox(label="Question"),
+    ],
+    outputs=gr.Textbox(label="Answer"),
+    title="Chat with your data",
+    description="Ask a question and get an answer based on your data",
+)
+
 main_interface = gr.TabbedInterface(
     [
         indexing_interface,
@@ -176,6 +202,7 @@ main_interface = gr.TabbedInterface(
         text_search_interface,
         clustering_interface,
         get_cluster_images_interface,
+        chat_with_your_data_interface,
     ],
     [
         "Indexing",
@@ -183,6 +210,7 @@ main_interface = gr.TabbedInterface(
         "Search From Text",
         "Images Clustering",
         "Get Cluster Images",
+        "Chat With Your Data",
     ],
 )
 

@@ -31,20 +31,47 @@ The system is able to process, analyze and visualize the data. The user can inte
    - Provides RESTful API for data retrieval and processing.
    - Supports data export and import functionalities.
 
-## Installation:
+## Download the example testing dataset from here:
+https://drive.google.com/file/d/150JAF09H_Dg4Q-fzqmvhB1vJ3Nvf7RYr
 
-### Configuration:
+## Installation (Linux / MacOS)
+(Recommended)
+
+### Configuration
 ```bash
 cp .env.example .env
 ```
 
-### Start the system:
+### Start the system
 ```bash
 ./start.sh
 ```
+Access the web interface on http://127.0.0.1:7860/
 
-### Run tests:
+### Run tests
 ```bash
 cd src
 pytest
 ```
+
+## How to run manually (Windows)
+Keep in mind that the system is designed to run on Linux. 
+The system is not guaranteed to work on Windows and may require additional tweaks.
+```
+# Set environment variables
+set OLLAMA_LLM_MODEL=your_model # default is mistral:7b
+set DEFAULT_SEARCH_FOLDER_PATH=\path\to\your\dataset\folder # optional
+
+# Create a virtual environment and install the dependencies
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+
+# Start Ollama API and pull the model
+docker compose up -d
+docker exec -it ollama-api ollama pull %OLLAMA_LLM_MODEL%
+
+# Start the application
+python .\src\app.py
+```
+Access the web interface on http://127.0.0.1:7860/
