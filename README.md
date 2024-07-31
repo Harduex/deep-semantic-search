@@ -1,4 +1,4 @@
-# [Deep Semantic Search](https://github.com/Harduex/chat-with-your-data)
+# [Deep Semantic Search](https://github.com/Harduex/deep-semantic-search)
 
 This repository contains a system designed for embedding, indexing, and applying semantic search for personal folders containing text and image data.<br>
 The system is capable of processing, analyzing, and visualizing the data, with additional features such as clustering, image captioning, and retrieval-augmented generation.
