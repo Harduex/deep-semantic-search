@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deep-semantic-search"
+version = "0.1.1"
+description = "A library for embedding, indexing, and applying semantic search for text and image data"
+readme = "README.md"
+authors = [
+    {name = "Harduex", email = "simeon.simka@gmail.com"}
+]
+license = "MIT"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Indexing",
+]
+dependencies = [
+    "sentence-transformers>=2.7.0",
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+    "faiss-cpu>=1.8.0",
+    "pandas>=2.0.0",
+    "numpy>=1.22.0",
+    "matplotlib>=3.5.0",
+    "tqdm>=4.60.0",
+    "beautifulsoup4>=4.9.0",
+    "kmeans-pytorch>=0.3",
+    "langchain>=0.1.0",
+    "langchain-community>=0.0.1",
+    "pillow>=10.0.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/Harduex/deep-semantic-search"
+"Bug Tracker" = "https://github.com/Harduex/deep-semantic-search/issues"
