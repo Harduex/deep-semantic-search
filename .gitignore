@@ -72,11 +72,9 @@ venv.bak/
 *.swo
 
 # Project specific
-data/*/
-!data/.gitkeep
-src/__pycache__/
-src/.pytest_cache
-experiments/datasets/**
-src/deep_semantic_search/__pycache__
+data/
+flagged/
+_archive/
+models/
 src/tests/__pycache__
 .fuse_hidden*
