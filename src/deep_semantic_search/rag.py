@@ -91,13 +91,15 @@ def ask_question(
         from langchain_huggingface import HuggingFaceEmbeddings
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+        from .config import TEXT_MODEL_DEFAULT
+
         documents = [Document(page_content=text) for text in text_data]
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
         all_splits = text_splitter.split_documents(documents)
         vectorstore = Chroma.from_documents(
-            documents=all_splits, embedding=HuggingFaceEmbeddings()
+            documents=all_splits, embedding=HuggingFaceEmbeddings(model_name=TEXT_MODEL_DEFAULT)
         )
 
         if llm_fn is not None:
