@@ -193,7 +193,7 @@ def image_cluster(
 @cli.command()
 @click.option("--folder", "-f", required=True, help="Folder containing text/html files.")
 @click.argument("question")
-@click.option("--model", default=None, help="Ollama model name (default: env OLLAMA_LLM_MODEL or mistral:7b).")
+@click.option("--model", default=None, help="Ollama model name (default: env OLLAMA_LLM_MODEL or gemma4:e4b).")
 @click.option("--chunk-size", default=1500, show_default=True, help="Text chunk size for splitting.")
 @click.option("--chunk-overlap", default=100, show_default=True, help="Overlap between chunks.")
 def ask(folder: str, question: str, model: str | None, chunk_size: int, chunk_overlap: int) -> None:

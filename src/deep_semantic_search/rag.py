@@ -65,7 +65,7 @@ def ask_question(
         Optional custom LLM callable. If provided, ``model_name`` is ignored
         and this function is used directly for generation.
     model_name : str | None
-        Ollama model name. Defaults to env var ``OLLAMA_LLM_MODEL`` or ``mistral:7b``.
+        Ollama model name. Defaults to env var ``OLLAMA_LLM_MODEL`` or ``gemma4:e4b``.
     prompt
         LangChain prompt template. Defaults to built-in RAG prompt.
 
@@ -78,7 +78,7 @@ def ask_question(
         raise SearchError("text_data must be a non-empty list of strings.")
 
     if model_name is None:
-        model_name = os.getenv("OLLAMA_LLM_MODEL") or "mistral:7b"
+        model_name = os.getenv("OLLAMA_LLM_MODEL") or "gemma4:e4b"
 
     if prompt is None:
         prompt = _get_default_prompt()

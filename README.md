@@ -216,7 +216,7 @@ dss ask -f ./docs "question" --chunk-size 2000 --chunk-overlap 200
 ### Configuration
 
 The CLI respects environment variables:
-- `OLLAMA_LLM_MODEL` — LLM model for RAG (default: `mistral:7b`)
+- `OLLAMA_LLM_MODEL` — LLM model for RAG (default: `gemma4:e4b`)
 - `DEFAULT_SEARCH_FOLDER_PATH` — Default folder path
 
 All CLI flags override environment variables when provided.

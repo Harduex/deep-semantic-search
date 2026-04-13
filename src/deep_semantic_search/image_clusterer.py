@@ -22,7 +22,7 @@ logger = logging.getLogger("deep_semantic_search")
 
 def _default_topic_fn(texts: list[str]) -> list[str]:
     """Try Ollama for topic extraction; fall back to generic label."""
-    llm_model = os.getenv("OLLAMA_LLM_MODEL") or "mistral:7b"
+    llm_model = os.getenv("OLLAMA_LLM_MODEL") or "gemma4:e4b"
     try:
         import ast
         import re
