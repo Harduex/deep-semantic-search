@@ -97,7 +97,7 @@ class ImageClusterer:
         self,
         n_clusters: int | None = None,
         captioner: ImageCaptioner | None = None,
-        min_cluster_size: int = 5,
+        min_cluster_size: int = 3,
     ) -> pd.DataFrame:
         """Cluster indexed images into groups and assign topic labels.
 
@@ -137,7 +137,8 @@ class ImageClusterer:
             km = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
             image_data["cluster"] = km.fit_predict(features)
         else:
-            hdb = HDBSCAN(min_cluster_size=min_cluster_size)
+            effective_min = min(min_cluster_size, max(2, len(features) // 4))
+            hdb = HDBSCAN(min_cluster_size=effective_min, min_samples=1)
             image_data["cluster"] = hdb.fit_predict(features)
 
         unique_clusters = sorted(image_data["cluster"].unique())

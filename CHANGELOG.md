@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.0.2
+
+### Bug Fixes
+
+- **Pin `transformers>=4.38.0,<4.54.0`**: Florence-2 custom modeling code is incompatible with transformers >= 4.54.0 (`_supports_sdpa` attribute error).
+- **Fix HDBSCAN clustering for small datasets**: Default `min_cluster_size` lowered from 5 to 3, auto-adjusted for dataset size, and `min_samples=1` prevents all-noise results on small image sets.
+
 ## 3.0.1
 
 ### Bug Fixes
