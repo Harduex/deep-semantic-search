@@ -6,7 +6,7 @@ DEFAULT_METADATA_DIR = Path.home() / ".deep-semantic-search"
 
 CLIP_MODEL_DEFAULT = "openai/clip-vit-base-patch32"
 BLIP_MODEL_DEFAULT = "Salesforce/blip-image-captioning-large"
-TEXT_MODEL_DEFAULT = "sentence-transformers/nli-mpnet-base-v2"
+TEXT_MODEL_DEFAULT = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".bmp")
 

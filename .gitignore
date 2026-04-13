@@ -78,3 +78,5 @@ _archive/
 models/
 src/tests/__pycache__
 .fuse_hidden*
+demo/metadata/
+demo/output/
