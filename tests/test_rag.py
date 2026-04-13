@@ -39,7 +39,7 @@ def test_ask_question_basic():
     mock_runnables = MagicMock()
 
     with patch.dict(sys.modules, {
-        "langchain_community.embeddings": MagicMock(GPT4AllEmbeddings=MagicMock()),
+        "langchain_huggingface": MagicMock(HuggingFaceEmbeddings=MagicMock()),
         "langchain_community.vectorstores": MagicMock(Chroma=mock_chroma),
         "langchain_text_splitters": mock_text_splitters,
         "langchain_core.documents": mock_documents,
@@ -80,7 +80,7 @@ def test_ask_question_with_custom_llm_fn():
     mock_lc_models = MagicMock()
 
     with patch.dict(sys.modules, {
-        "langchain_community.embeddings": MagicMock(GPT4AllEmbeddings=MagicMock()),
+        "langchain_huggingface": MagicMock(HuggingFaceEmbeddings=MagicMock()),
         "langchain_community.vectorstores": MagicMock(Chroma=mock_chroma),
         "langchain_text_splitters": mock_text_splitters,
         "langchain_core.documents": mock_documents,

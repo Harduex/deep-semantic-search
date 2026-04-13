@@ -28,7 +28,7 @@ def _default_topic_fn(texts: list[str]) -> list[str]:
         import re
 
         from langchain.schema import HumanMessage, SystemMessage
-        from langchain_community.chat_models import ChatOllama
+        from langchain_ollama import ChatOllama
 
         chat = ChatOllama(model=llm_model, temperature=0.8)
 

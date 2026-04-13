@@ -35,9 +35,9 @@ def _get_default_prompt():
 
 def _get_default_llm(model_name: str):
     """Create a default Ollama LLM instance."""
-    from langchain_community.llms import Ollama
+    from langchain_ollama import OllamaLLM
 
-    return Ollama(model=model_name, verbose=False)
+    return OllamaLLM(model=model_name, verbose=False)
 
 
 def ask_question(
@@ -84,11 +84,11 @@ def ask_question(
         prompt = _get_default_prompt()
 
     try:
-        from langchain_community.embeddings import GPT4AllEmbeddings
         from langchain_community.vectorstores import Chroma
         from langchain_core.documents import Document
         from langchain_core.output_parsers import StrOutputParser
         from langchain_core.runnables import RunnablePassthrough
+        from langchain_huggingface import HuggingFaceEmbeddings
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
         documents = [Document(page_content=text) for text in text_data]
@@ -97,7 +97,7 @@ def ask_question(
         )
         all_splits = text_splitter.split_documents(documents)
         vectorstore = Chroma.from_documents(
-            documents=all_splits, embedding=GPT4AllEmbeddings()
+            documents=all_splits, embedding=HuggingFaceEmbeddings()
         )
 
         if llm_fn is not None:
