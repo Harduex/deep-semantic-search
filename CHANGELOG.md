@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.1
+
+### Bug Fixes
+
+- **Pin `transformers>=4.38.0,<5.0.0`**: FlagEmbedding and Florence-2 are incompatible with transformers 5.x. This pin ensures all features work correctly.
+- **Add `einops` and `timm` to `[captioning]` extra**: Florence-2 requires these packages but they were missing from the optional dependency list.
+- **Fix misleading install instructions**: Reranking error messages no longer point to the empty `[reranking]` extra; they correctly reference the base package.
+- **Fix CI workflow branch target**: CI now runs on `master` (was incorrectly targeting `main`).
+
 ## 3.0.0
 
 ### Breaking Changes

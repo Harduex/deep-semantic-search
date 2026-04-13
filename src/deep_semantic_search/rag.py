@@ -61,7 +61,7 @@ class RAG:
             except ImportError:
                 raise ImportError(
                     "'sentence-transformers' is required for reranking. "
-                    "Install it with: pip install deep-semantic-search[reranking]"
+                    "Install it with: pip install deep-semantic-search"
                 ) from None
         return self._reranker
 
