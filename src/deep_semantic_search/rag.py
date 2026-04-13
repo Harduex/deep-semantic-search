@@ -84,11 +84,11 @@ def ask_question(
         prompt = _get_default_prompt()
 
     try:
+        from langchain_community.embeddings import GPT4AllEmbeddings
+        from langchain_community.vectorstores import Chroma
         from langchain_core.documents import Document
         from langchain_core.output_parsers import StrOutputParser
         from langchain_core.runnables import RunnablePassthrough
-        from langchain_community.embeddings import GPT4AllEmbeddings
-        from langchain_community.vectorstores import Chroma
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
         documents = [Document(page_content=text) for text in text_data]

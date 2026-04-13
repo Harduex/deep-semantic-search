@@ -2,11 +2,9 @@
 
 import pickle
 import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
-import pandas as pd
 import pytest
 
 
@@ -91,8 +89,9 @@ def mock_clip_model(mock_transformers):
     mock_model_instance = MagicMock()
     mock_model_instance.to.return_value = mock_model_instance
 
-    feature_tensor = MagicMock()
-    feature_tensor.data.cpu.return_value.numpy.return_value.flatten.return_value = fake_feature
+    feature_tensor = MagicMock(spec=[])
+    feature_tensor.detach = MagicMock()
+    feature_tensor.detach.return_value.cpu.return_value.numpy.return_value.flatten.return_value = fake_feature
     feature_tensor.detach.return_value.cpu.return_value.numpy.return_value = fake_feature
     mock_model_instance.get_image_features.return_value = feature_tensor
     mock_model_instance.get_text_features.return_value = feature_tensor

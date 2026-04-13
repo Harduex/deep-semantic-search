@@ -87,7 +87,9 @@ class ImageIndexer:
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
         with torch.no_grad():
             feature = self.model.get_image_features(**inputs)
-        feature = feature.data.cpu().numpy().flatten()
+        if hasattr(feature, "pooler_output"):
+            feature = feature.pooler_output
+        feature = feature.detach().cpu().numpy().flatten()
         return feature / np.linalg.norm(feature)
 
     def _get_features(self, image_paths: list[str]) -> list[np.ndarray | None]:

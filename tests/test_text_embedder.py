@@ -1,6 +1,5 @@
 """Tests for TextEmbedder with mocked SentenceTransformer."""
 
-from unittest.mock import MagicMock
 
 import pytest
 import torch

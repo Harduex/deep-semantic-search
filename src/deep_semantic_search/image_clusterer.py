@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-from PIL import Image, ImageOps
 from kmeans_pytorch import kmeans
+from PIL import Image, ImageOps
 
 from .exceptions import ClusteringError
 from .image_indexer import ImageIndexer
@@ -24,10 +24,11 @@ def _default_topic_fn(texts: list[str]) -> list[str]:
     """Try Ollama for topic extraction; fall back to generic label."""
     llm_model = os.getenv("OLLAMA_LLM_MODEL") or "mistral:7b"
     try:
-        from langchain_community.chat_models import ChatOllama
-        from langchain.schema import HumanMessage, SystemMessage
-        import re
         import ast
+        import re
+
+        from langchain.schema import HumanMessage, SystemMessage
+        from langchain_community.chat_models import ChatOllama
 
         chat = ChatOllama(model=llm_model, temperature=0.8)
 

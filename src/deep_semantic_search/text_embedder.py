@@ -6,8 +6,6 @@ import logging
 import pickle
 from pathlib import Path
 
-import numpy as np
-
 from .config import (
     CORPUS_EMBEDDINGS_DATA_FILE,
     CORPUS_LIST_DATA_FILE,

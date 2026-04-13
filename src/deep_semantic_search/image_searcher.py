@@ -6,7 +6,6 @@ import math
 import faiss
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import torch
 from PIL import Image, ImageOps
 
@@ -30,9 +29,9 @@ class ImageSearcher:
     def _search_by_vector(self, vector: np.ndarray, n: int) -> dict[str, float]:
         """Search FAISS index by feature vector."""
         index = faiss.read_index(str(self._indexer._index_file))
-        D, I = index.search(np.array([vector], dtype=np.float32), n)
+        D, indices = index.search(np.array([vector], dtype=np.float32), n)
         image_data = self._indexer.get_metadata()
-        paths = image_data.iloc[I[0]]["images_paths"].to_list()
+        paths = image_data.iloc[indices[0]]["images_paths"].to_list()
         return dict(zip(paths, D[0].tolist()))
 
     def search_by_image(self, image_path: str, n: int = 10) -> dict[str, float]:
@@ -72,6 +71,8 @@ class ImageSearcher:
         inputs = {k: v.to(self._indexer.device) for k, v in inputs.items()}
         with torch.no_grad():
             text_embeddings = self._indexer.model.get_text_features(**inputs)
+        if hasattr(text_embeddings, "pooler_output"):
+            text_embeddings = text_embeddings.pooler_output
         text_embeddings = text_embeddings.detach().cpu().numpy()
 
         image_data = self._indexer.get_metadata()

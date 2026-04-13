@@ -1,12 +1,10 @@
 """Tests for ImageIndexer with mocked CLIP model."""
 
-from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
 
+from deep_semantic_search.exceptions import IndexNotFoundError, ModelLoadError
 from deep_semantic_search.image_indexer import ImageIndexer
-from deep_semantic_search.exceptions import ModelLoadError, IndexNotFoundError
 
 
 def test_indexer_creates_metadata_dir(sample_images, tmp_metadata_dir, mock_clip_model):

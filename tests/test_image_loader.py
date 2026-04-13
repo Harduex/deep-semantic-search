@@ -1,6 +1,5 @@
 """Tests for LoadImageData."""
 
-import os
 
 from deep_semantic_search.image_loader import LoadImageData
 

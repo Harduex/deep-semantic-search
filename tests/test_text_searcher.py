@@ -1,11 +1,8 @@
 """Tests for TextSearch with mocked embeddings."""
 
-from unittest.mock import MagicMock
 
-import pytest
 import torch
 
-from deep_semantic_search.exceptions import SearchError
 from deep_semantic_search.text_searcher import TextSearch
 
 

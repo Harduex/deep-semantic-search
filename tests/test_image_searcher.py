@@ -1,9 +1,6 @@
 """Tests for ImageSearcher with mocked dependencies."""
 
-from unittest.mock import MagicMock, patch
 
-import numpy as np
-import pytest
 
 from deep_semantic_search.image_searcher import ImageSearcher
 
