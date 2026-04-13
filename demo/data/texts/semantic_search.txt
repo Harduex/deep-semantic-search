@@ -1,0 +1,16 @@
+Semantic search goes beyond traditional keyword matching by understanding the meaning
+and intent behind search queries. Instead of looking for exact word matches, semantic
+search uses vector embeddings to represent text in a high-dimensional space where
+similar meanings are close together.
+
+Key techniques include:
+- Word embeddings (Word2Vec, GloVe) that capture word-level semantics
+- Sentence embeddings (Sentence-BERT, Universal Sentence Encoder) for paragraph-level meaning
+- Cross-encoders that jointly encode query-document pairs for more accurate retrieval
+
+FAISS (Facebook AI Similarity Search) is a library for efficient similarity search
+in high-dimensional vector spaces. It supports various indexing strategies including
+flat (brute-force), IVF (inverted file), and HNSW (hierarchical navigable small world).
+
+Applications of semantic search include document retrieval, question answering,
+recommendation systems, and duplicate detection.

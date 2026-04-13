@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deep-semantic-search"
-version = "1.0.0"
+version = "1.1.0"
 description = "A library for embedding, indexing, and applying semantic search for text and image data"
 readme = "README.md"
 authors = [

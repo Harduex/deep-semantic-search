@@ -1,0 +1,16 @@
+Computer vision is the field of artificial intelligence that enables machines to
+interpret and understand visual information from the world. It encompasses a wide
+range of tasks including image classification, object detection, semantic segmentation,
+and image generation.
+
+CLIP (Contrastive Language-Image Pre-training) by OpenAI is a multimodal model that
+learns visual concepts from natural language supervision. It can match images with
+text descriptions, enabling zero-shot image classification and cross-modal search.
+
+BLIP (Bootstrapping Language-Image Pre-training) is a vision-language model that
+excels at image captioning and visual question answering. It generates natural
+language descriptions of images by combining visual encoders with language decoders.
+
+Image clustering groups visually similar images together using techniques like
+KMeans on feature vectors extracted by models such as CLIP. This enables automatic
+organization of large image collections without manual labeling.

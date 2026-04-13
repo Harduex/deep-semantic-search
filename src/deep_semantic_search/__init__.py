@@ -20,7 +20,7 @@ from .text_embedder import TextEmbedder
 from .text_loader import LoadTextData
 from .text_searcher import TextSearch
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 __all__ = [
     # Image

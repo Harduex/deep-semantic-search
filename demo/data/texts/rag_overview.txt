@@ -1,0 +1,19 @@
+Retrieval-Augmented Generation (RAG) combines the strengths of information retrieval
+and text generation to produce accurate, grounded responses. Instead of relying solely
+on a language model's parametric knowledge, RAG first retrieves relevant documents
+from a knowledge base and then uses them as context for generation.
+
+The RAG pipeline typically consists of:
+1. Document loading and chunking - splitting documents into manageable pieces
+2. Embedding - converting chunks into vector representations
+3. Indexing - storing vectors in a vector database (ChromaDB, Pinecone, FAISS)
+4. Retrieval - finding the most relevant chunks for a given query
+5. Generation - feeding retrieved context to an LLM to generate an answer
+
+LangChain is a popular framework for building RAG applications. It provides
+abstractions for document loaders, text splitters, embeddings, vector stores,
+and LLM chains. Ollama enables running open-source LLMs locally, making it
+possible to build fully private RAG systems.
+
+Key challenges in RAG include chunk size optimization, retrieval accuracy,
+handling contradictory information, and maintaining context coherence.

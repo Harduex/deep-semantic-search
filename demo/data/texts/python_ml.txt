@@ -1,0 +1,19 @@
+Python is one of the most popular programming languages for data science and
+artificial intelligence. Its rich ecosystem of libraries makes it the go-to
+choice for machine learning practitioners.
+
+Key Python libraries for AI and ML:
+- NumPy: numerical computing with multi-dimensional arrays
+- Pandas: data manipulation and analysis with DataFrames
+- Matplotlib: data visualization and plotting
+- Scikit-learn: traditional machine learning algorithms
+- PyTorch: deep learning framework with dynamic computation graphs
+- TensorFlow: deep learning framework by Google
+- Transformers (Hugging Face): pre-trained model hub and inference library
+- LangChain: framework for building LLM-powered applications
+- FAISS: efficient similarity search library by Meta
+
+Best practices for Python ML projects include using virtual environments,
+type hints, proper logging, exception handling, and comprehensive testing.
+The packaging ecosystem (pip, setuptools, pyproject.toml) enables easy
+distribution of ML libraries as installable packages.

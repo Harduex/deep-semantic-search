@@ -1,6 +1,6 @@
 .env
 venv
-data
+/data
 src/__pycache__
 src/.pytest_cache
 experiments/datasets/**
@@ -72,7 +72,7 @@ venv.bak/
 *.swo
 
 # Project specific
-data/
+/data/
 flagged/
 _archive/
 models/
