@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.3
+
+### Bug Fixes
+
+- **Fix unified search returning only text results**: Scores are now normalized per-modality so image and text results are ranked on a comparable scale. Previously, text embeddings dominated due to SigLIP's 64-token limit inflating text similarity scores.
+
 ## 3.0.2
 
 ### Bug Fixes

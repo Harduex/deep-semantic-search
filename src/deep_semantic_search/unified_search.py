@@ -202,21 +202,47 @@ class UnifiedSearcher:
         self, vector: np.ndarray, n: int, modality_filter: str | None = None
     ) -> list[dict]:
         metadata = self._indexer.get_metadata()
-        # Fetch extra to account for filtering
-        fetch_n = min(n * 3 if modality_filter else n, len(metadata))
+        # Fetch all to enable per-modality score normalization
+        fetch_n = len(metadata)
         matches = self._index.search(vector.astype(np.float32), fetch_n)
 
-        results = []
+        # Collect raw results grouped by modality
+        by_modality: dict[str, list[dict]] = {"image": [], "text": []}
         for key, distance in zip(matches.keys, matches.distances):
             idx = int(key)
             entry = metadata[idx]
-            if modality_filter and entry["type"] != modality_filter:
+            raw_score = float(1.0 - distance)
+            by_modality.setdefault(entry["type"], []).append({
+                "type": entry["type"],
+                "source": entry["source"],
+                "raw_score": raw_score,
+            })
+
+        # Normalize scores within each modality to [0, 1]
+        all_results = []
+        for mod, items in by_modality.items():
+            if not items:
+                continue
+            scores = [r["raw_score"] for r in items]
+            min_s, max_s = min(scores), max(scores)
+            score_range = max_s - min_s
+            for item in items:
+                item["score"] = (
+                    (item["raw_score"] - min_s) / score_range if score_range > 0 else 1.0
+                )
+                all_results.append(item)
+
+        # Sort by normalized score, filter modality, and take top n
+        all_results.sort(key=lambda x: -x["score"])
+        results = []
+        for r in all_results:
+            if modality_filter and r["type"] != modality_filter:
                 continue
             results.append({
                 "rank": len(results) + 1,
-                "type": entry["type"],
-                "source": entry["source"],
-                "score": float(1.0 - distance),
+                "type": r["type"],
+                "source": r["source"],
+                "score": r["score"],
             })
             if len(results) >= n:
                 break
