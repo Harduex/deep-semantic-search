@@ -56,7 +56,10 @@ class TestImageSearch:
     def test_search_by_text(self, mock_loader_cls, mock_indexer_cls, mock_searcher_cls, runner, image_folder):
         mock_loader_cls.return_value.from_folder.return_value = ["img1.jpg", "img2.jpg"]
         mock_indexer_cls.return_value.run_index.return_value = None
-        mock_searcher_cls.return_value.search_by_text.return_value = {"img1.jpg": 0.95, "img2.jpg": 0.80}
+        mock_searcher_cls.return_value.search_by_text.return_value = [
+            {"rank": 1, "path": "img1.jpg", "score": 0.95},
+            {"rank": 2, "path": "img2.jpg", "score": 0.80},
+        ]
 
         result = runner.invoke(cli, ["image-search", "-f", image_folder, "--query", "sunset", "--top", "2"])
         assert result.exit_code == 0
@@ -76,7 +79,9 @@ class TestImageSearch:
     def test_json_output(self, mock_loader_cls, mock_indexer_cls, mock_searcher_cls, runner, image_folder):
         mock_loader_cls.return_value.from_folder.return_value = ["a.jpg"]
         mock_indexer_cls.return_value.run_index.return_value = None
-        mock_searcher_cls.return_value.search_by_text.return_value = {"a.jpg": 0.9}
+        mock_searcher_cls.return_value.search_by_text.return_value = [
+            {"rank": 1, "path": "a.jpg", "score": 0.9},
+        ]
 
         result = runner.invoke(cli, ["image-search", "-f", image_folder, "-q", "cat", "--format", "json"])
         assert result.exit_code == 0

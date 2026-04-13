@@ -33,6 +33,7 @@ def test_custom_llm_fn():
     from deep_semantic_search.image_indexer import ImageIndexer
 
     mock_indexer = MagicMock(spec=ImageIndexer)
-    custom_fn = lambda texts: ["custom_topic"]
+    def custom_fn(texts):
+        return ["custom_topic"]
     clusterer = ImageClusterer(mock_indexer, llm_fn=custom_fn)
     assert clusterer._llm_fn is custom_fn

@@ -11,7 +11,7 @@ A Python library for embedding, indexing, and applying semantic search for text 
   - Search text by semantic similarity
 
 - **Clustering & Captioning**
-  - Cluster image embeddings using PyTorch KMeans (GPU support)
+  - Cluster image embeddings using KMeans (scikit-learn)
   - Caption images using BLIP
   - Customizable LLM-powered topic labeling via callback
 
@@ -23,6 +23,14 @@ A Python library for embedding, indexing, and applying semantic search for text 
 
 ```bash
 pip install deep-semantic-search
+```
+
+Install with optional extras:
+```bash
+pip install deep-semantic-search[rag]         # RAG / question answering
+pip install deep-semantic-search[clustering]  # Image clustering
+pip install deep-semantic-search[viz]         # Plotting / visualization
+pip install deep-semantic-search[all]         # Everything
 ```
 
 For development:
@@ -48,8 +56,8 @@ indexer.run_index()
 # Search by text
 searcher = ImageSearcher(indexer)
 results = searcher.search_by_text("cat on a sofa", n=5)
-for path, score in results.items():
-    print(f"{score:.3f}  {path}")
+for r in results:
+    print(f"{r['score']:.3f}  {r['path']}")
 
 # Search by image
 results = searcher.search_by_image("query.jpg", n=5)

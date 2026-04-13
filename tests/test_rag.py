@@ -32,7 +32,11 @@ def test_ask_question_basic():
     mock_prompt = MagicMock()
     # pipe operators: {dict} | prompt | llm | parser → chain
     # The final result of all | operations should be mock_chain
-    mock_prompt.__ror__ = MagicMock(return_value=MagicMock(__or__=MagicMock(return_value=MagicMock(__or__=MagicMock(return_value=mock_chain)))))
+    mock_prompt.__ror__ = MagicMock(
+        return_value=MagicMock(
+            __or__=MagicMock(return_value=MagicMock(__or__=MagicMock(return_value=mock_chain)))
+        )
+    )
 
     mock_documents = MagicMock()
     mock_output_parsers = MagicMock()
@@ -40,7 +44,7 @@ def test_ask_question_basic():
 
     with patch.dict(sys.modules, {
         "langchain_huggingface": MagicMock(HuggingFaceEmbeddings=MagicMock()),
-        "langchain_community.vectorstores": MagicMock(Chroma=mock_chroma),
+        "langchain_chroma": MagicMock(Chroma=mock_chroma),
         "langchain_text_splitters": mock_text_splitters,
         "langchain_core.documents": mock_documents,
         "langchain_core.output_parsers": mock_output_parsers,
@@ -57,7 +61,8 @@ def test_ask_question_basic():
 
 def test_ask_question_with_custom_llm_fn():
     """Test that llm_fn callback is accepted and used."""
-    custom_fn = lambda text: "custom response"
+    def custom_fn(text):
+        return "custom response"
 
     mock_chroma = MagicMock()
     mock_retriever = MagicMock()
@@ -72,7 +77,11 @@ def test_ask_question_with_custom_llm_fn():
     mock_chain.invoke.return_value = "custom answer"
 
     mock_prompt = MagicMock()
-    mock_prompt.__ror__ = MagicMock(return_value=MagicMock(__or__=MagicMock(return_value=MagicMock(__or__=MagicMock(return_value=mock_chain)))))
+    mock_prompt.__ror__ = MagicMock(
+        return_value=MagicMock(
+            __or__=MagicMock(return_value=MagicMock(__or__=MagicMock(return_value=mock_chain)))
+        )
+    )
 
     mock_documents = MagicMock()
     mock_output_parsers = MagicMock()
@@ -81,7 +90,7 @@ def test_ask_question_with_custom_llm_fn():
 
     with patch.dict(sys.modules, {
         "langchain_huggingface": MagicMock(HuggingFaceEmbeddings=MagicMock()),
-        "langchain_community.vectorstores": MagicMock(Chroma=mock_chroma),
+        "langchain_chroma": MagicMock(Chroma=mock_chroma),
         "langchain_text_splitters": mock_text_splitters,
         "langchain_core.documents": mock_documents,
         "langchain_core.output_parsers": mock_output_parsers,

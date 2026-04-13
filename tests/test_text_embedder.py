@@ -14,8 +14,8 @@ def test_embed_saves_files(mock_sentence_transformers, tmp_metadata_dir, sample_
     embedder = TextEmbedder(metadata_dir=tmp_metadata_dir)
     embedder.embed(sample_text_corpus)
 
-    assert (tmp_metadata_dir / "corpus_embeddings_data.pickle").exists()
-    assert (tmp_metadata_dir / "corpus_list_data.pickle").exists()
+    assert (tmp_metadata_dir / "corpus_embeddings.npy").exists()
+    assert (tmp_metadata_dir / "corpus_metadata.json").exists()
 
 
 def test_embed_skips_if_exists(mock_sentence_transformers, tmp_metadata_dir, sample_text_corpus):

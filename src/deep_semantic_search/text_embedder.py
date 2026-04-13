@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import pickle
 from pathlib import Path
+
+import numpy as np
+import torch
 
 from .config import (
     CORPUS_EMBEDDINGS_DATA_FILE,
@@ -47,10 +51,50 @@ class TextEmbedder:
         self._embeddings_file = self._metadata_dir / CORPUS_EMBEDDINGS_DATA_FILE
         self._corpus_file = self._metadata_dir / CORPUS_LIST_DATA_FILE
 
-        from sentence_transformers import SentenceTransformer
+        # Legacy pickle paths for migration
+        self._legacy_embeddings_file = self._metadata_dir / "corpus_embeddings_data.pickle"
+        self._legacy_corpus_file = self._metadata_dir / "corpus_list_data.pickle"
 
-        self.embedder = SentenceTransformer(model_name)
+        self._embedder = None
         self.corpus_embeddings = None
+
+    @property
+    def embedder(self):
+        """Lazy-loaded SentenceTransformer model."""
+        if self._embedder is None:
+            from sentence_transformers import SentenceTransformer
+
+            self._embedder = SentenceTransformer(self.model_name)
+        return self._embedder
+
+    def _migrate_legacy_pickle(self) -> bool:
+        """Migrate legacy .pickle format to numpy/json if needed."""
+        if (
+            self._legacy_embeddings_file.exists()
+            and self._legacy_corpus_file.exists()
+            and not self._embeddings_file.exists()
+        ):
+            try:
+                with open(self._legacy_embeddings_file, "rb") as f:
+                    embeddings = pickle.load(f)
+                with open(self._legacy_corpus_file, "rb") as f:
+                    corpus_dict = pickle.load(f)
+
+                # Convert tensor to numpy if needed
+                if hasattr(embeddings, "cpu"):
+                    embeddings_np = embeddings.cpu().numpy()
+                else:
+                    embeddings_np = np.array(embeddings)
+                np.save(self._embeddings_file, embeddings_np)
+
+                with open(self._corpus_file, "w", encoding="utf-8") as f:
+                    # Convert keys to strings for JSON
+                    json.dump({str(k): v for k, v in corpus_dict.items()}, f)
+                logger.info("Migrated legacy pickle to numpy/json format.")
+                return True
+            except Exception as exc:
+                logger.warning("Failed to migrate legacy pickle: %s", exc)
+        return False
 
     def embed(self, corpus_dict: dict, reindex: bool = False) -> None:
         """Compute and save embeddings for a text corpus.
@@ -63,16 +107,23 @@ class TextEmbedder:
             If True, recompute even if embeddings exist.
         """
         has_data = self._embeddings_file.exists() and self._corpus_file.exists()
+        if not has_data and not reindex:
+            # Check for legacy pickle files to migrate
+            has_data = self._migrate_legacy_pickle()
         if not has_data or reindex:
             self.corpus_embeddings = self.embedder.encode(
                 list(corpus_dict.values()),
                 convert_to_tensor=True,
                 show_progress_bar=True,
             )
-            with open(self._embeddings_file, "wb") as f:
-                pickle.dump(self.corpus_embeddings, f)
-            with open(self._corpus_file, "wb") as f:
-                pickle.dump(corpus_dict, f)
+            # Convert tensor to numpy for saving
+            if hasattr(self.corpus_embeddings, "cpu"):
+                embeddings_np = self.corpus_embeddings.cpu().numpy()
+            else:
+                embeddings_np = np.array(self.corpus_embeddings)
+            np.save(self._embeddings_file, embeddings_np)
+            with open(self._corpus_file, "w", encoding="utf-8") as f:
+                json.dump({str(k): v for k, v in corpus_dict.items()}, f)
             logger.info("Embeddings saved to %s", self._metadata_dir)
         else:
             logger.info("Embeddings already present at %s, skipping.", self._metadata_dir)
@@ -91,12 +142,14 @@ class TextEmbedder:
             If no saved embeddings are found.
         """
         if not self._embeddings_file.exists():
-            raise EmbeddingError("No embedding data found. Run embed() first.")
+            # Try migration from legacy format
+            if not self._migrate_legacy_pickle():
+                raise EmbeddingError("No embedding data found. Run embed() first.")
 
-        with open(self._embeddings_file, "rb") as f:
-            embeddings = pickle.load(f)
-        with open(self._corpus_file, "rb") as f:
-            corpus_dict = pickle.load(f)
+        embeddings_np = np.load(self._embeddings_file)
+        embeddings = torch.from_numpy(embeddings_np)
+        with open(self._corpus_file, "r", encoding="utf-8") as f:
+            corpus_dict = json.load(f)
 
         logger.info("Embeddings loaded from %s", self._metadata_dir)
         return embeddings, corpus_dict

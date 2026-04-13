@@ -4,7 +4,6 @@ import logging
 import math
 
 import faiss
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from PIL import Image, ImageOps
@@ -25,16 +24,26 @@ class ImageSearcher:
 
     def __init__(self, indexer: ImageIndexer):
         self._indexer = indexer
+        self._cached_index = None
 
-    def _search_by_vector(self, vector: np.ndarray, n: int) -> dict[str, float]:
+    @property
+    def _index(self):
+        """Lazy-load and cache the FAISS index."""
+        if self._cached_index is None:
+            self._cached_index = faiss.read_index(str(self._indexer._index_file))
+        return self._cached_index
+
+    def _search_by_vector(self, vector: np.ndarray, n: int) -> list[dict]:
         """Search FAISS index by feature vector."""
-        index = faiss.read_index(str(self._indexer._index_file))
-        D, indices = index.search(np.array([vector], dtype=np.float32), n)
+        D, indices = self._index.search(np.array([vector], dtype=np.float32), n)
         image_data = self._indexer.get_metadata()
         paths = image_data.iloc[indices[0]]["images_paths"].to_list()
-        return dict(zip(paths, D[0].tolist()))
+        return [
+            {"rank": i + 1, "path": p, "score": float(s)}
+            for i, (p, s) in enumerate(zip(paths, D[0].tolist()))
+        ]
 
-    def search_by_image(self, image_path: str, n: int = 10) -> dict[str, float]:
+    def search_by_image(self, image_path: str, n: int = 10) -> list[dict]:
         """Find images most similar to a query image.
 
         Parameters
@@ -46,13 +55,13 @@ class ImageSearcher:
 
         Returns
         -------
-        dict[str, float]
-            Mapping of image path to distance score.
+        list[dict]
+            List of dicts with keys ``rank``, ``path``, ``score``.
         """
         query_vector = self._indexer._extract(Image.open(image_path))
         return self._search_by_vector(query_vector, n)
 
-    def search_by_text(self, text: str, n: int = 10) -> dict[str, float]:
+    def search_by_text(self, text: str, n: int = 10) -> list[dict]:
         """Find images most similar to a text query using CLIP.
 
         Parameters
@@ -64,8 +73,8 @@ class ImageSearcher:
 
         Returns
         -------
-        dict[str, float]
-            Mapping of image path to similarity score (higher = more similar).
+        list[dict]
+            List of dicts with keys ``rank``, ``path``, ``score``.
         """
         inputs = self._indexer.processor(text=text, return_tensors="pt")
         inputs = {k: v.to(self._indexer.device) for k, v in inputs.items()}
@@ -81,7 +90,12 @@ class ImageSearcher:
         sorted_indices = np.argsort(similarity_scores)[::-1][:n]
 
         similar = image_data.iloc[sorted_indices]
-        return dict(zip(similar["images_paths"], similarity_scores[sorted_indices].tolist()))
+        paths = similar["images_paths"].to_list()
+        scores = similarity_scores[sorted_indices].tolist()
+        return [
+            {"rank": i + 1, "path": p, "score": float(s)}
+            for i, (p, s) in enumerate(zip(paths, scores))
+        ]
 
     def plot_similar_images(self, image_path: str, n: int = 6) -> None:
         """Display a query image and its most similar matches.
@@ -93,6 +107,14 @@ class ImageSearcher:
         n : int
             Number of similar images to show.
         """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            raise ImportError(
+                "'matplotlib' is required for plotting. "
+                "Install it with: pip install deep-semantic-search[viz]"
+            ) from None
+
         input_img = Image.open(image_path)
         input_img_resized = ImageOps.fit(input_img, (224, 224), Image.LANCZOS)
         plt.figure(figsize=(5, 5))
@@ -102,7 +124,7 @@ class ImageSearcher:
         plt.show()
 
         results = self.search_by_image(image_path, n)
-        img_list = list(results.keys())
+        img_list = [r["path"] for r in results]
 
         grid_size = math.ceil(math.sqrt(n))
         fig = plt.figure(figsize=(20, 15))

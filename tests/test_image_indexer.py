@@ -8,7 +8,7 @@ from deep_semantic_search.image_indexer import ImageIndexer
 
 
 def test_indexer_creates_metadata_dir(sample_images, tmp_metadata_dir, mock_clip_model):
-    indexer = ImageIndexer(
+    ImageIndexer(
         image_list=sample_images,
         metadata_dir=tmp_metadata_dir / "clip",
     )
@@ -17,8 +17,10 @@ def test_indexer_creates_metadata_dir(sample_images, tmp_metadata_dir, mock_clip
 
 def test_indexer_model_load_failure(sample_images, tmp_metadata_dir, mock_transformers):
     mock_transformers.CLIPProcessor.from_pretrained.side_effect = RuntimeError("download failed")
+    indexer = ImageIndexer(image_list=sample_images, metadata_dir=tmp_metadata_dir)
     with pytest.raises(ModelLoadError, match="download failed"):
-        ImageIndexer(image_list=sample_images, metadata_dir=tmp_metadata_dir)
+        # Trigger lazy model loading
+        _ = indexer.model
 
 
 def test_run_index(sample_images, tmp_metadata_dir, mock_clip_model):
@@ -28,7 +30,8 @@ def test_run_index(sample_images, tmp_metadata_dir, mock_clip_model):
     )
     indexer.run_index()
 
-    assert (tmp_metadata_dir / "clip" / "image_data_features.pkl").exists()
+    assert (tmp_metadata_dir / "clip" / "image_features.npy").exists()
+    assert (tmp_metadata_dir / "clip" / "image_paths.json").exists()
     assert (tmp_metadata_dir / "clip" / "image_features_vectors.idx").exists()
     assert not indexer.image_data.empty
 

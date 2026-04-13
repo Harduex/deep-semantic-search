@@ -7,10 +7,18 @@ DEFAULT_METADATA_DIR = Path.home() / ".deep-semantic-search"
 CLIP_MODEL_DEFAULT = "openai/clip-vit-base-patch32"
 BLIP_MODEL_DEFAULT = "Salesforce/blip-image-captioning-large"
 TEXT_MODEL_DEFAULT = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+DEFAULT_OLLAMA_MODEL = "gemma4:e4b"
 
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".bmp")
 
-IMAGE_DATA_FEATURES_FILE = "image_data_features.pkl"
+IMAGE_DATA_FEATURES_FILE = "image_features.npy"
+IMAGE_DATA_PATHS_FILE = "image_paths.json"
 IMAGE_FEATURES_VECTORS_FILE = "image_features_vectors.idx"
-CORPUS_LIST_DATA_FILE = "corpus_list_data.pickle"
-CORPUS_EMBEDDINGS_DATA_FILE = "corpus_embeddings_data.pickle"
+CORPUS_LIST_DATA_FILE = "corpus_metadata.json"
+CORPUS_EMBEDDINGS_DATA_FILE = "corpus_embeddings.npy"
+
+
+def get_device():
+    """Return CUDA device if available, otherwise CPU."""
+    import torch
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")

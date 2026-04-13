@@ -46,7 +46,7 @@ class TextSearch:
         query_embedding = self._embedder.embedder.encode(query_text, convert_to_tensor=True)
         from sentence_transformers import util
 
-        cos_scores = util.pytorch_cos_sim(query_embedding, self._corpus_embeddings)[0].cpu().data.numpy()
+        cos_scores = util.pytorch_cos_sim(query_embedding, self._corpus_embeddings)[0].cpu().detach().numpy()
         sorted_indices = np.argsort(-cos_scores)
 
         results: list[dict] = []

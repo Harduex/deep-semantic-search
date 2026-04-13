@@ -10,17 +10,28 @@ from .exceptions import (
     ModelLoadError,
     SearchError,
 )
-from .image_captioner import ImageCaptioner
-from .image_clusterer import ImageClusterer
 from .image_indexer import ImageIndexer
 from .image_loader import LoadImageData
 from .image_searcher import ImageSearcher
-from .rag import ask_question
 from .text_embedder import TextEmbedder
 from .text_loader import LoadTextData
 from .text_searcher import TextSearch
 
-__version__ = "1.1.4"
+# These require optional extras
+try:
+    from .image_clusterer import ImageClusterer
+except ImportError:
+    pass
+try:
+    from .image_captioner import ImageCaptioner
+except ImportError:
+    pass
+try:
+    from .rag import ask_question
+except ImportError:
+    pass
+
+__version__ = "2.0.0"
 
 __all__ = [
     # Image

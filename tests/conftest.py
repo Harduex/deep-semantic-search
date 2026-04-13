@@ -1,6 +1,6 @@
 """Shared test fixtures with mocked ML models."""
 
-import pickle
+import json
 import sys
 from unittest.mock import MagicMock
 
@@ -117,9 +117,8 @@ def saved_text_embeddings(tmp_metadata_dir, sample_text_corpus):
     n_docs = len(sample_text_corpus)
     embeddings = torch.randn(n_docs, 384)
 
-    with open(tmp_metadata_dir / "corpus_embeddings_data.pickle", "wb") as f:
-        pickle.dump(embeddings, f)
-    with open(tmp_metadata_dir / "corpus_list_data.pickle", "wb") as f:
-        pickle.dump(sample_text_corpus, f)
+    np.save(tmp_metadata_dir / "corpus_embeddings.npy", embeddings.numpy())
+    with open(tmp_metadata_dir / "corpus_metadata.json", "w", encoding="utf-8") as f:
+        json.dump(sample_text_corpus, f)
 
     return tmp_metadata_dir

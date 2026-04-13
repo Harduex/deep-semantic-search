@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from pathlib import Path
@@ -17,7 +18,9 @@ from .config import (
     CLIP_MODEL_DEFAULT,
     DEFAULT_METADATA_DIR,
     IMAGE_DATA_FEATURES_FILE,
+    IMAGE_DATA_PATHS_FILE,
     IMAGE_FEATURES_VECTORS_FILE,
+    get_device,
 )
 from .exceptions import IndexNotFoundError, ModelLoadError
 
@@ -47,7 +50,7 @@ class ImageIndexer:
         metadata_dir: str | Path | None = None,
         image_count: int | None = None,
     ):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = get_device()
         self.model_name = model_name
 
         if image_count is not None:
@@ -64,21 +67,48 @@ class ImageIndexer:
 
         self._metadata_dir.mkdir(parents=True, exist_ok=True)
 
-        self._features_pkl = self._metadata_dir / IMAGE_DATA_FEATURES_FILE
+        self._features_file = self._metadata_dir / IMAGE_DATA_FEATURES_FILE
+        self._paths_file = self._metadata_dir / IMAGE_DATA_PATHS_FILE
         self._index_file = self._metadata_dir / IMAGE_FEATURES_VECTORS_FILE
 
-        # Load CLIP model
+        # Legacy pickle paths for migration
+        self._legacy_features_pkl = self._metadata_dir / "image_data_features.pkl"
+
+        # Lazy model loading
+        self._model = None
+        self._processor = None
+        self._model_loaded = False
+
+        self.image_data: pd.DataFrame = pd.DataFrame()
+
+    def _load_model(self) -> None:
+        """Load CLIP model and processor."""
+        if self._model_loaded:
+            return
         try:
             from transformers import CLIPModel, CLIPProcessor
 
-            logger.info("Loading CLIP model: %s", model_name)
-            self.processor = CLIPProcessor.from_pretrained(model_name)
-            self.model = CLIPModel.from_pretrained(model_name).to(self.device)
-            logger.info("Model loaded successfully: %s", model_name)
+            logger.info("Loading CLIP model: %s", self.model_name)
+            self._processor = CLIPProcessor.from_pretrained(self.model_name)
+            self._model = CLIPModel.from_pretrained(self.model_name).to(self.device)
+            logger.info("Model loaded successfully: %s", self.model_name)
+            self._model_loaded = True
         except Exception as exc:
-            raise ModelLoadError(f"Failed to load CLIP model '{model_name}': {exc}") from exc
+            raise ModelLoadError(f"Failed to load CLIP model '{self.model_name}': {exc}") from exc
 
-        self.image_data: pd.DataFrame = pd.DataFrame()
+    @property
+    def model(self):
+        """Lazy-loaded CLIP model."""
+        if not self._model_loaded:
+            self._load_model()
+        return self._model
+
+    @property
+    def processor(self):
+        """Lazy-loaded CLIP processor."""
+        if not self._model_loaded:
+            self._load_model()
+        return self._processor
 
     def _extract(self, img: Image.Image) -> np.ndarray:
         """Extract normalized CLIP feature vector from a single image."""
@@ -104,14 +134,46 @@ class ImageIndexer:
                 features.append(None)
         return features
 
+    def _migrate_legacy_pickle(self) -> bool:
+        """Migrate legacy .pkl format to numpy/json if needed."""
+        if self._legacy_features_pkl.exists() and not self._features_file.exists():
+            try:
+                legacy_data = pd.read_pickle(self._legacy_features_pkl)
+                paths = legacy_data["images_paths"].to_list()
+                features = np.vstack(legacy_data["features"].values).astype(np.float32)
+                np.save(self._features_file, features)
+                with open(self._paths_file, "w", encoding="utf-8") as f:
+                    json.dump(paths, f)
+                logger.info("Migrated legacy pickle to numpy/json format.")
+                return True
+            except Exception as exc:
+                logger.warning("Failed to migrate legacy pickle: %s", exc)
+        return False
+
     def _build_features(self) -> pd.DataFrame:
-        """Extract features and save metadata pickle."""
+        """Extract features and save metadata."""
         image_data = pd.DataFrame()
         image_data["images_paths"] = self.image_list
         image_data["features"] = self._get_features(self.image_list)
         image_data = image_data.dropna().reset_index(drop=True)
-        image_data.to_pickle(self._features_pkl)
-        logger.info("Image metadata saved: %s", self._features_pkl)
+
+        # Save as numpy/json
+        paths = image_data["images_paths"].to_list()
+        features = np.vstack(image_data["features"].values).astype(np.float32)
+        np.save(self._features_file, features)
+        with open(self._paths_file, "w", encoding="utf-8") as f:
+            json.dump(paths, f)
+        logger.info("Image metadata saved: %s", self._features_file)
+        return image_data
+
+    def _load_metadata(self) -> pd.DataFrame:
+        """Load metadata from numpy/json files."""
+        features = np.load(self._features_file)
+        with open(self._paths_file, "r", encoding="utf-8") as f:
+            paths = json.load(f)
+        image_data = pd.DataFrame()
+        image_data["images_paths"] = paths
+        image_data["features"] = list(features)
         return image_data
 
     def _build_index(self, image_data: pd.DataFrame) -> None:
@@ -136,9 +198,11 @@ class ImageIndexer:
             data = self._build_features()
             self._build_index(data)
         else:
+            # Try migration from legacy format
+            self._migrate_legacy_pickle()
             logger.info("Metadata already present at %s, skipping indexing.", self._metadata_dir)
 
-        self.image_data = pd.read_pickle(self._features_pkl)
+        self.image_data = self._load_metadata()
 
     def add_images(self, new_image_paths: list[str]) -> None:
         """Add new images to an existing index.
@@ -148,10 +212,12 @@ class ImageIndexer:
         new_image_paths : list[str]
             Paths to new images to add.
         """
-        if not self._features_pkl.exists() or not self._index_file.exists():
-            raise IndexNotFoundError("No existing index found. Run run_index() first.")
+        if not self._features_file.exists() or not self._index_file.exists():
+            # Try migration first
+            if not self._migrate_legacy_pickle():
+                raise IndexNotFoundError("No existing index found. Run run_index() first.")
 
-        self.image_data = pd.read_pickle(self._features_pkl)
+        self.image_data = self._load_metadata()
         index = faiss.read_index(str(self._index_file))
 
         for path in tqdm(new_image_paths, desc="Adding images"):
@@ -165,7 +231,12 @@ class ImageIndexer:
             self.image_data = pd.concat([self.image_data, new_row], axis=0, ignore_index=True)
             index.add(np.array([feature], dtype=np.float32))
 
-        self.image_data.to_pickle(self._features_pkl)
+        # Save updated metadata
+        paths = self.image_data["images_paths"].to_list()
+        features = np.vstack(self.image_data["features"].values).astype(np.float32)
+        np.save(self._features_file, features)
+        with open(self._paths_file, "w", encoding="utf-8") as f:
+            json.dump(paths, f)
         faiss.write_index(index, str(self._index_file))
         logger.info("Added %d images to index.", len(new_image_paths))
 
@@ -177,6 +248,6 @@ class ImageIndexer:
         pd.DataFrame
             DataFrame with columns ``images_paths`` and ``features``.
         """
-        if self.image_data.empty and self._features_pkl.exists():
-            self.image_data = pd.read_pickle(self._features_pkl)
+        if self.image_data.empty and self._features_file.exists():
+            self.image_data = self._load_metadata()
         return self.image_data

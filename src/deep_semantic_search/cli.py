@@ -97,7 +97,7 @@ def image_search(folder: tuple[str, ...], query: str, top: int, model: str, rein
         click.echo(f"Searching by text: {query}")
         results = searcher.search_by_text(query, n=top)
 
-    rows = [{"rank": i + 1, "path": path, "score": f"{score:.4f}"} for i, (path, score) in enumerate(results.items())]
+    rows = [{"rank": r["rank"], "path": r["path"], "score": f"{r['score']:.4f}"} for r in results]
     _output(rows, ["rank", "path", "score"], fmt)
 
 

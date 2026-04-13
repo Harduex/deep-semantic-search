@@ -5,13 +5,11 @@ from __future__ import annotations
 import logging
 import math
 
-import matplotlib.pyplot as plt
 import pandas as pd
-import torch
 from PIL import Image, ImageOps
 from tqdm import tqdm
 
-from .config import BLIP_MODEL_DEFAULT
+from .config import BLIP_MODEL_DEFAULT, get_device
 from .exceptions import ModelLoadError
 
 logger = logging.getLogger("deep_semantic_search")
@@ -30,7 +28,7 @@ class ImageCaptioner:
 
     def __init__(self, model_name: str = BLIP_MODEL_DEFAULT):
         self.model_name = model_name
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = get_device()
 
         try:
             from transformers import BlipForConditionalGeneration, BlipProcessor
@@ -80,6 +78,14 @@ class ImageCaptioner:
         caption_col : str | None
             Column name containing captions to display as titles.
         """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            raise ImportError(
+                "'matplotlib' is required for plotting. "
+                "Install it with: pip install deep-semantic-search[viz]"
+            ) from None
+
         count = len(images_df)
         grid_size = math.ceil(math.sqrt(count))
         fig = plt.figure(figsize=(20, 15))

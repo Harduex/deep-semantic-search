@@ -6,6 +6,7 @@ import logging
 import os
 from collections.abc import Callable
 
+from .config import DEFAULT_OLLAMA_MODEL
 from .exceptions import SearchError
 
 logger = logging.getLogger("deep_semantic_search")
@@ -78,13 +79,13 @@ def ask_question(
         raise SearchError("text_data must be a non-empty list of strings.")
 
     if model_name is None:
-        model_name = os.getenv("OLLAMA_LLM_MODEL") or "gemma4:e4b"
+        model_name = os.getenv("OLLAMA_LLM_MODEL") or DEFAULT_OLLAMA_MODEL
 
     if prompt is None:
         prompt = _get_default_prompt()
 
     try:
-        from langchain_community.vectorstores import Chroma
+        from langchain_chroma import Chroma
         from langchain_core.documents import Document
         from langchain_core.output_parsers import StrOutputParser
         from langchain_core.runnables import RunnablePassthrough
@@ -111,9 +112,6 @@ def ask_question(
                 def __init__(self, fn: Callable[[str], str], **kwargs):
                     super().__init__(**kwargs)
                     self._fn = fn
-
-                def _call(self, prompt: str, **kwargs) -> str:
-                    return self._fn(prompt)
 
                 def _generate(self, prompts, stop=None, **kwargs):
                     from langchain_core.outputs import Generation, LLMResult

@@ -1,33 +1,36 @@
 """Image clustering using KMeans on CLIP embeddings."""
 
+from __future__ import annotations
+
 import logging
 import math
 import os
 import shutil
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import torch
-from kmeans_pytorch import kmeans
-from PIL import Image, ImageOps
 
+from .config import DEFAULT_OLLAMA_MODEL
 from .exceptions import ClusteringError
 from .image_indexer import ImageIndexer
+
+if TYPE_CHECKING:
+    from .image_captioner import ImageCaptioner
 
 logger = logging.getLogger("deep_semantic_search")
 
 
 def _default_topic_fn(texts: list[str]) -> list[str]:
     """Try Ollama for topic extraction; fall back to generic label."""
-    llm_model = os.getenv("OLLAMA_LLM_MODEL") or "gemma4:e4b"
+    llm_model = os.getenv("OLLAMA_LLM_MODEL") or DEFAULT_OLLAMA_MODEL
     try:
         import ast
         import re
 
-        from langchain.schema import HumanMessage, SystemMessage
+        from langchain_core.messages import HumanMessage, SystemMessage
         from langchain_ollama import ChatOllama
 
         chat = ChatOllama(model=llm_model, temperature=0.8)
@@ -50,7 +53,7 @@ Topic: ['topic']
 Don't include any other information in your response. No clarifications or additional information.
 """
 
-        answer = chat(
+        answer = chat.invoke(
             [
                 SystemMessage(content=prompt_text),
                 HumanMessage(content="What is the best topic for these texts?"),
@@ -87,7 +90,7 @@ class ImageClusterer:
         self._llm_fn = llm_fn or _default_topic_fn
         self._image_data: pd.DataFrame = pd.DataFrame()
 
-    def cluster(self, n_clusters: int, captioner: "ImageCaptioner | None" = None) -> pd.DataFrame:
+    def cluster(self, n_clusters: int, captioner: ImageCaptioner | None = None) -> pd.DataFrame:
         """Cluster indexed images into groups and assign topic labels.
 
         Parameters
@@ -107,19 +110,19 @@ class ImageClusterer:
         if image_data.empty:
             raise ClusteringError("No indexed images found. Run indexer.run_index() first.")
 
-        features = np.vstack(image_data["features"].values)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        data = torch.from_numpy(features).float().to(device)
+        try:
+            from sklearn.cluster import KMeans
+        except ImportError:
+            raise ImportError(
+                "'scikit-learn' is required for clustering. "
+                "Install it with: pip install deep-semantic-search[clustering]"
+            ) from None
 
-        cluster_ids, _centers = kmeans(
-            X=data,
-            num_clusters=n_clusters,
-            distance="euclidean",
-            device=device,
-        )
+        features = np.vstack(image_data["features"].values).astype(np.float32)
+        km = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
 
         image_data = image_data.copy()
-        image_data["cluster"] = cluster_ids.cpu().numpy()
+        image_data["cluster"] = km.fit_predict(features)
 
         if captioner is not None:
             for i in range(n_clusters):
@@ -186,6 +189,16 @@ class ImageClusterer:
         n : int | None
             Number of images to plot. None means all.
         """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            raise ImportError(
+                "'matplotlib' is required for plotting. "
+                "Install it with: pip install deep-semantic-search[viz]"
+            ) from None
+
+        from PIL import Image, ImageOps
+
         img_list = self.get_cluster_images(cluster_id)
         count = n or len(img_list)
         count = min(count, len(img_list))
@@ -202,10 +215,3 @@ class ImageClusterer:
         fig.subplots_adjust(top=0.93)
         fig.suptitle(f"Cluster {cluster_id}", fontsize=22)
         plt.show()
-
-
-# Avoid circular import — ImageCaptioner is only used as type hint
-from typing import TYPE_CHECKING  # noqa: E402
-
-if TYPE_CHECKING:
-    from .image_captioner import ImageCaptioner

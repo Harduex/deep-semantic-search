@@ -17,8 +17,10 @@ def test_search_by_image(sample_images, tmp_metadata_dir, mock_clip_model):
     searcher = ImageSearcher(indexer)
     results = searcher.search_by_image(sample_images[0], n=3)
 
-    assert isinstance(results, dict)
+    assert isinstance(results, list)
     assert len(results) <= 3
+    assert all(isinstance(r, dict) for r in results)
+    assert all("rank" in r and "path" in r and "score" in r for r in results)
 
 
 def test_search_by_text(sample_images, tmp_metadata_dir, mock_clip_model):
@@ -33,5 +35,7 @@ def test_search_by_text(sample_images, tmp_metadata_dir, mock_clip_model):
     searcher = ImageSearcher(indexer)
     results = searcher.search_by_text("a red image", n=2)
 
-    assert isinstance(results, dict)
+    assert isinstance(results, list)
     assert len(results) <= 2
+    assert all(isinstance(r, dict) for r in results)
+    assert all("rank" in r and "path" in r and "score" in r for r in results)

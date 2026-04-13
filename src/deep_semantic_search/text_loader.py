@@ -31,6 +31,7 @@ class LoadTextData:
         dict[int, str]
             Mapping of row index to text content.
         """
+        self.corpus_dict = {}
         csv_data = pd.read_csv(file_path, encoding="latin1")
         self.corpus_dict = csv_data[column_name].dropna().to_dict()
         return self.corpus_dict
@@ -50,6 +51,7 @@ class LoadTextData:
         dict[str, str]
             Mapping of file path to text content.
         """
+        self.corpus_dict = {}
         count = 0
         for dirpath, _dirnames, filenames in os.walk(folder_path):
             for filename in filenames:
