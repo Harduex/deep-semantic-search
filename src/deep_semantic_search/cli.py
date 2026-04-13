@@ -10,7 +10,7 @@ from pathlib import Path
 
 import click
 
-from .config import CLIP_MODEL_DEFAULT, IMAGE_EXTENSIONS, TEXT_MODEL_DEFAULT
+from .config import BGE_M3_MODEL_DEFAULT, IMAGE_EXTENSIONS, SIGLIP_MODEL_DEFAULT
 
 
 def _setup_logging(verbose: bool, quiet: bool) -> None:
@@ -70,7 +70,7 @@ def cli(ctx: click.Context, verbose: bool, quiet: bool) -> None:
 @click.option("--folder", "-f", required=True, multiple=True, help="Folder(s) containing images.")
 @click.option("--query", "-q", required=True, help="Text query or path to an image file.")
 @click.option("--top", "-n", default=10, show_default=True, help="Number of results.")
-@click.option("--model", default=CLIP_MODEL_DEFAULT, show_default=True, help="CLIP model name.")
+@click.option("--model", default=SIGLIP_MODEL_DEFAULT, show_default=True, help="SigLIP model name.")
 @click.option("--reindex", is_flag=True, help="Force re-indexing.")
 @click.option("--format", "fmt", type=click.Choice(["table", "json", "csv"]), default="table", show_default=True)
 def image_search(folder: tuple[str, ...], query: str, top: int, model: str, reindex: bool, fmt: str) -> None:
@@ -108,10 +108,14 @@ def image_search(folder: tuple[str, ...], query: str, top: int, model: str, rein
 @click.option("--folder", "-f", required=True, help="Folder containing text/html files.")
 @click.argument("query")
 @click.option("--top", "-n", default=10, show_default=True, help="Number of results.")
-@click.option("--model", default=TEXT_MODEL_DEFAULT, show_default=True, help="Sentence Transformer model.")
+@click.option("--model", default=BGE_M3_MODEL_DEFAULT, show_default=True, help="BGE-M3 model name.")
 @click.option("--reindex", is_flag=True, help="Force re-embedding.")
+@click.option("--rerank", is_flag=True, help="Rerank results with cross-encoder.")
+@click.option("--hybrid/--no-hybrid", default=True, show_default=True, help="Use hybrid dense+sparse search.")
 @click.option("--format", "fmt", type=click.Choice(["table", "json", "csv"]), default="table", show_default=True)
-def text_search(folder: str, query: str, top: int, model: str, reindex: bool, fmt: str) -> None:
+def text_search(
+    folder: str, query: str, top: int, model: str, reindex: bool, rerank: bool, hybrid: bool, fmt: str
+) -> None:
     """Search text documents by semantic similarity."""
     from .text_embedder import TextEmbedder
     from .text_loader import LoadTextData
@@ -128,7 +132,7 @@ def text_search(folder: str, query: str, top: int, model: str, reindex: bool, fm
     embedder.embed(corpus, reindex=reindex)
 
     searcher = TextSearch(embedder)
-    results = searcher.find_similar(query, top_n=top)
+    results = searcher.find_similar(query, top_n=top, rerank=rerank, hybrid=hybrid)
 
     rows = [
         {"rank": i + 1, "score": f"{r['score']:.4f}", "path": r["path"], "text": r["text"][:120]}
@@ -142,16 +146,24 @@ def text_search(folder: str, query: str, top: int, model: str, reindex: bool, fm
 # ---------------------------------------------------------------------------
 @cli.command("image-cluster")
 @click.option("--folder", "-f", required=True, multiple=True, help="Folder(s) containing images.")
-@click.option("--clusters", "-k", required=True, type=int, help="Number of clusters.")
-@click.option("--caption", is_flag=True, help="Use BLIP captioning for topic labels.")
+@click.option("--clusters", "-k", default=None, type=int, help="Number of clusters (omit for HDBSCAN auto).")
+@click.option("--min-cluster-size", default=5, show_default=True, help="Minimum cluster size for HDBSCAN.")
+@click.option("--caption", is_flag=True, help="Use Florence-2 captioning for topic labels.")
 @click.option("--save-dir", type=click.Path(), default=None, help="Save clustered images to this directory.")
-@click.option("--model", default=CLIP_MODEL_DEFAULT, show_default=True, help="CLIP model name.")
+@click.option("--model", default=SIGLIP_MODEL_DEFAULT, show_default=True, help="SigLIP model name.")
 @click.option("--reindex", is_flag=True, help="Force re-indexing.")
 @click.option("--format", "fmt", type=click.Choice(["table", "json", "csv"]), default="table", show_default=True)
 def image_cluster(
-    folder: tuple[str, ...], clusters: int, caption: bool, save_dir: str | None, model: str, reindex: bool, fmt: str
+    folder: tuple[str, ...],
+    clusters: int | None,
+    min_cluster_size: int,
+    caption: bool,
+    save_dir: str | None,
+    model: str,
+    reindex: bool,
+    fmt: str,
 ) -> None:
-    """Cluster images using KMeans on CLIP embeddings."""
+    """Cluster images using KMeans or HDBSCAN on SigLIP embeddings."""
     from .image_clusterer import ImageClusterer
     from .image_indexer import ImageIndexer
     from .image_loader import LoadImageData
@@ -173,8 +185,11 @@ def image_cluster(
         captioner = ImageCaptioner()
 
     clusterer = ImageClusterer(indexer)
-    click.echo(f"Clustering into {clusters} groups...")
-    result_df = clusterer.cluster(n_clusters=clusters, captioner=captioner)
+    method = f"KMeans(k={clusters})" if clusters else "HDBSCAN"
+    click.echo(f"Clustering with {method}...")
+    result_df = clusterer.cluster(
+        n_clusters=clusters, captioner=captioner, min_cluster_size=min_cluster_size
+    )
 
     rows = [
         {"cluster": int(row["cluster"]), "topic": row.get("topic", ""), "path": row["images_paths"]}
@@ -194,11 +209,22 @@ def image_cluster(
 @click.option("--folder", "-f", required=True, help="Folder containing text/html files.")
 @click.argument("question")
 @click.option("--model", default=None, help="Ollama model name (default: env OLLAMA_LLM_MODEL or gemma4:e4b).")
-@click.option("--chunk-size", default=1500, show_default=True, help="Text chunk size for splitting.")
-@click.option("--chunk-overlap", default=100, show_default=True, help="Overlap between chunks.")
-def ask(folder: str, question: str, model: str | None, chunk_size: int, chunk_overlap: int) -> None:
+@click.option("--chunk-size", default=1500, show_default=True, help="Text chunk size.")
+@click.option("--rerank", is_flag=True, help="Rerank retrieved chunks with cross-encoder.")
+@click.option(
+    "--semantic-chunking/--no-semantic-chunking", default=True, show_default=True,
+    help="Use semantic chunking.",
+)
+def ask(
+    folder: str,
+    question: str,
+    model: str | None,
+    chunk_size: int,
+    rerank: bool,
+    semantic_chunking: bool,
+) -> None:
     """Ask a question over text documents using RAG."""
-    from .rag import ask_question
+    from .rag import RAG
     from .text_loader import LoadTextData
 
     loader = LoadTextData()
@@ -208,14 +234,116 @@ def ask(folder: str, question: str, model: str | None, chunk_size: int, chunk_ov
         raise SystemExit(1)
 
     click.echo(f"Loaded {len(corpus)} documents. Running RAG...")
-    answer = ask_question(
+    rag = RAG(model_name=model, rerank=rerank)
+    answer = rag.ask(
         text_data=list(corpus.values()),
         question=question,
         chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        model_name=model,
+        semantic_chunking=semantic_chunking,
     )
     click.echo(f"\n{answer}")
+
+
+# ---------------------------------------------------------------------------
+# unified-search
+# ---------------------------------------------------------------------------
+@cli.command("unified-search")
+@click.option("--image-folder", default=None, help="Folder containing images.")
+@click.option("--text-folder", default=None, help="Folder containing text files.")
+@click.option("--query", "-q", required=True, help="Text query.")
+@click.option("--top", "-n", default=10, show_default=True, help="Number of results.")
+@click.option(
+    "--filter", "modality_filter", type=click.Choice(["all", "image", "text"]),
+    default="all", show_default=True,
+)
+@click.option("--format", "fmt", type=click.Choice(["table", "json", "csv"]), default="table", show_default=True)
+def unified_search(
+    image_folder: str | None,
+    text_folder: str | None,
+    query: str,
+    top: int,
+    modality_filter: str,
+    fmt: str,
+) -> None:
+    """Search across images and text in a unified embedding space."""
+    from .unified_search import UnifiedIndexer, UnifiedSearcher
+
+    if not image_folder and not text_folder:
+        click.echo("Provide at least --image-folder or --text-folder.", err=True)
+        raise SystemExit(1)
+
+    indexer = UnifiedIndexer()
+
+    if image_folder:
+        from .image_loader import LoadImageData
+
+        loader = LoadImageData()
+        images = loader.from_folder([image_folder])
+        if images:
+            click.echo(f"Adding {len(images)} images...")
+            indexer.add_images(images)
+
+    if text_folder:
+        from .text_loader import LoadTextData
+
+        loader = LoadTextData()
+        corpus = loader.from_folder(text_folder)
+        if corpus:
+            click.echo(f"Adding {len(corpus)} text documents...")
+            indexer.add_texts(list(corpus.values()), labels=list(corpus.keys()))
+
+    if not indexer._entries:
+        click.echo("No data found to index.", err=True)
+        raise SystemExit(1)
+
+    indexer.build_index()
+    searcher = UnifiedSearcher(indexer)
+
+    filt = None if modality_filter == "all" else modality_filter
+    results = searcher.search(query, n=top, modality_filter=filt)
+
+    rows = [
+        {"rank": r["rank"], "type": r["type"], "source": r["source"], "score": f"{r['score']:.4f}"}
+        for r in results
+    ]
+    _output(rows, ["rank", "type", "source", "score"], fmt)
+
+
+# ---------------------------------------------------------------------------
+# find-duplicates
+# ---------------------------------------------------------------------------
+@cli.command("find-duplicates")
+@click.option("--folder", "-f", required=True, multiple=True, help="Folder(s) containing images.")
+@click.option("--threshold", "-t", default=0.95, show_default=True, help="Similarity threshold.")
+@click.option("--format", "fmt", type=click.Choice(["table", "json", "csv"]), default="table", show_default=True)
+def find_duplicates(folder: tuple[str, ...], threshold: float, fmt: str) -> None:
+    """Find near-duplicate images in the given folder(s)."""
+    from .image_indexer import ImageIndexer
+    from .image_loader import LoadImageData
+    from .image_searcher import ImageSearcher
+
+    loader = LoadImageData()
+    images = loader.from_folder(list(folder))
+    if not images:
+        click.echo("No images found.", err=True)
+        raise SystemExit(1)
+
+    click.echo(f"Found {len(images)} images. Indexing...")
+    indexer = ImageIndexer(images)
+    indexer.run_index()
+
+    searcher = ImageSearcher(indexer)
+    duplicates = searcher.find_duplicates(threshold=threshold)
+
+    if not duplicates:
+        click.echo("No duplicates found.")
+        return
+
+    rows = [
+        {"path1": p1, "path2": p2, "similarity": f"{sim:.4f}"}
+        for p1, p2, sim in duplicates
+    ]
+    _output(rows, ["path1", "path2", "similarity"], fmt)
 
 
 def main() -> None:

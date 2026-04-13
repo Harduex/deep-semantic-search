@@ -1,4 +1,4 @@
-"""Image clustering using KMeans on CLIP embeddings."""
+"""Image clustering using KMeans or HDBSCAN on SigLIP embeddings."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
-from .config import DEFAULT_OLLAMA_MODEL
+from .config import DEFAULT_OLLAMA_MODEL, SIGLIP_IMAGE_SIZE
 from .exceptions import ClusteringError
 from .image_indexer import ImageIndexer
 
@@ -24,16 +24,13 @@ logger = logging.getLogger("deep_semantic_search")
 
 
 def _default_topic_fn(texts: list[str]) -> list[str]:
-    """Try Ollama for topic extraction; fall back to generic label."""
+    """Try LiteLLM/Ollama for topic extraction; fall back to generic label."""
     llm_model = os.getenv("OLLAMA_LLM_MODEL") or DEFAULT_OLLAMA_MODEL
     try:
         import ast
         import re
 
-        from langchain_core.messages import HumanMessage, SystemMessage
-        from langchain_ollama import ChatOllama
-
-        chat = ChatOllama(model=llm_model, temperature=0.8)
+        from litellm import completion
 
         prompt_text = f"""
 You have been provided with the following list of descriptions of images:
@@ -53,24 +50,30 @@ Topic: ['topic']
 Don't include any other information in your response. No clarifications or additional information.
 """
 
-        answer = chat.invoke(
-            [
-                SystemMessage(content=prompt_text),
-                HumanMessage(content="What is the best topic for these texts?"),
-            ]
-        ).content
+        response = completion(
+            model=f"ollama/{llm_model}",
+            messages=[
+                {"role": "system", "content": prompt_text},
+                {"role": "user", "content": "What is the best topic for these texts?"},
+            ],
+        )
+        answer = response.choices[0].message.content
 
         match = re.search(r"Topic: (\[.*\])", answer)
         if match:
             return ast.literal_eval(match.group(1))
+    except ImportError:
+        logger.warning(
+            "LiteLLM not installed. Install with: pip install deep-semantic-search[llm]"
+        )
     except Exception as exc:
-        logger.warning("Ollama topic extraction failed: %s. Using fallback.", exc)
+        logger.warning("LLM topic extraction failed: %s. Using fallback.", exc)
 
     return ["other"]
 
 
 class ImageClusterer:
-    """Cluster images using KMeans on CLIP feature vectors.
+    """Cluster images using KMeans or HDBSCAN on feature vectors.
 
     Parameters
     ----------
@@ -78,7 +81,7 @@ class ImageClusterer:
         A configured and indexed ``ImageIndexer`` instance.
     llm_fn : Callable[[list[str]], list[str]] | None
         A callable that takes a list of caption texts and returns topic labels.
-        Defaults to using Ollama if available, else returns ``["other"]``.
+        Defaults to using LiteLLM/Ollama if available, else returns ``["other"]``.
     """
 
     def __init__(
@@ -90,16 +93,25 @@ class ImageClusterer:
         self._llm_fn = llm_fn or _default_topic_fn
         self._image_data: pd.DataFrame = pd.DataFrame()
 
-    def cluster(self, n_clusters: int, captioner: ImageCaptioner | None = None) -> pd.DataFrame:
+    def cluster(
+        self,
+        n_clusters: int | None = None,
+        captioner: ImageCaptioner | None = None,
+        min_cluster_size: int = 5,
+    ) -> pd.DataFrame:
         """Cluster indexed images into groups and assign topic labels.
+
+        If ``n_clusters`` is provided, uses KMeans. Otherwise, uses HDBSCAN
+        for automatic cluster count detection.
 
         Parameters
         ----------
-        n_clusters : int
-            Number of clusters.
+        n_clusters : int | None
+            Number of clusters. If None, HDBSCAN auto-selects.
         captioner : ImageCaptioner | None
-            Optional captioner for generating topic labels. If None, topics
-            are generated from a basic captioner import.
+            Optional captioner for generating topic labels.
+        min_cluster_size : int
+            Minimum cluster size for HDBSCAN (ignored with KMeans).
 
         Returns
         -------
@@ -111,7 +123,7 @@ class ImageClusterer:
             raise ClusteringError("No indexed images found. Run indexer.run_index() first.")
 
         try:
-            from sklearn.cluster import KMeans
+            from sklearn.cluster import HDBSCAN, KMeans
         except ImportError:
             raise ImportError(
                 "'scikit-learn' is required for clustering. "
@@ -119,21 +131,33 @@ class ImageClusterer:
             ) from None
 
         features = np.vstack(image_data["features"].values).astype(np.float32)
-        km = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-
         image_data = image_data.copy()
-        image_data["cluster"] = km.fit_predict(features)
+
+        if n_clusters is not None:
+            km = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            image_data["cluster"] = km.fit_predict(features)
+        else:
+            hdb = HDBSCAN(min_cluster_size=min_cluster_size)
+            image_data["cluster"] = hdb.fit_predict(features)
+
+        unique_clusters = sorted(image_data["cluster"].unique())
 
         if captioner is not None:
-            for i in range(n_clusters):
-                cluster_paths = image_data[image_data["cluster"] == i]["images_paths"].to_list()
+            for cid in unique_clusters:
+                if cid == -1:
+                    image_data.loc[image_data["cluster"] == -1, "topic"] = "noise"
+                    continue
+                cluster_paths = image_data[image_data["cluster"] == cid]["images_paths"].to_list()
                 sample_paths = cluster_paths[:15]
                 captions_df = captioner.caption(sample_paths)
                 topics = self._llm_fn(captions_df["caption"].to_list())
-                image_data.loc[image_data["cluster"] == i, "topic"] = topics[0]
+                image_data.loc[image_data["cluster"] == cid, "topic"] = topics[0]
         else:
-            for i in range(n_clusters):
-                image_data.loc[image_data["cluster"] == i, "topic"] = f"cluster_{i}"
+            for cid in unique_clusters:
+                if cid == -1:
+                    image_data.loc[image_data["cluster"] == -1, "topic"] = "noise"
+                else:
+                    image_data.loc[image_data["cluster"] == cid, "topic"] = f"cluster_{cid}"
 
         self._image_data = image_data
         return image_data
@@ -199,6 +223,7 @@ class ImageClusterer:
 
         from PIL import Image, ImageOps
 
+        img_size = (SIGLIP_IMAGE_SIZE, SIGLIP_IMAGE_SIZE)
         img_list = self.get_cluster_images(cluster_id)
         count = n or len(img_list)
         count = min(count, len(img_list))
@@ -209,7 +234,7 @@ class ImageClusterer:
             fig.add_subplot(grid_size, grid_size, i + 1)
             plt.axis("off")
             img = Image.open(img_list[i])
-            img_resized = ImageOps.fit(img, (224, 224), Image.LANCZOS)
+            img_resized = ImageOps.fit(img, img_size, Image.LANCZOS)
             plt.imshow(img_resized)
         fig.tight_layout()
         fig.subplots_adjust(top=0.93)

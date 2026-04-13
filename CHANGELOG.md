@@ -1,5 +1,63 @@
 # Changelog
 
+## 3.0.0
+
+### Breaking Changes
+
+- **Image model: CLIP → SigLIP SO400M** (`google/siglip-so400m-patch14-384`, 1152-dim, 384×384 input). All image embeddings must be rebuilt.
+- **Text model: MiniLM-L12 → BGE-M3** (`BAAI/bge-m3`, 1024-dim dense + sparse vectors). All text embeddings must be rebuilt.
+- **Vector backend: FAISS → USearch**. Index files change from `.idx` to `.usearch`. Legacy FAISS indexes are auto-migrated from existing `.npy` features.
+- **Captioning model: BLIP → Florence-2** (`microsoft/Florence-2-large`). `ImageCaptioner.caption()` no longer accepts `starting_text`; uses `task` parameter instead (default `"<DETAILED_CAPTION>"`). Model loading is now lazy.
+- **RAG stack: LangChain → LiteLLM + USearch**. All `langchain-*` dependencies removed. Install `pip install deep-semantic-search[llm]` for RAG.
+- **`TextEmbedder.load_embedding()` returns 3-tuple** `(dense_ndarray, sparse_list_or_None, corpus_dict)` instead of `(tensor, dict)`.
+- **`ImageClusterer.cluster()` `n_clusters` is now optional**. Omit for HDBSCAN auto-clustering; provide for KMeans.
+- **`search_by_text()` scores are now cosine similarity** in [0, 1] range (was unbounded inner product).
+
+### New Features
+
+- **Hybrid search**: BGE-M3 native dense + sparse vector fusion via weighted sum. Enable with `hybrid=True` (default) in `TextSearch.find_similar()`.
+- **Cross-encoder reranking**: `rerank=True` flag on `TextSearch.find_similar()` and RAG. Uses `BAAI/bge-reranker-v2-m3`.
+- **Cross-modal unified search**: `UnifiedIndexer` + `UnifiedSearcher` — index images and text in a shared SigLIP embedding space, search across modalities.
+- **Duplicate detection**: `find_duplicates(threshold)` method on `ImageSearcher`, `TextSearch`, and `UnifiedSearcher`.
+- **Semantic chunking**: RAG now splits text at embedding-similarity boundaries instead of fixed character counts. Toggle with `semantic_chunking=True/False`.
+- **`RAG` class**: Object-oriented API alongside the existing `ask_question()` wrapper.
+- **New CLI commands**: `unified-search`, `find-duplicates`.
+- **CLI enhancements**: `text-search` gains `--rerank` and `--hybrid/--no-hybrid`; `image-cluster` gains optional `-k` (omit for HDBSCAN) and `--min-cluster-size`; `ask` gains `--rerank` and `--semantic-chunking/--no-semantic-chunking`.
+
+### Dependencies
+
+- **Removed**: `faiss-cpu`, all `langchain-*` packages
+- **Added (core)**: `usearch>=2.9.0`, `FlagEmbedding>=1.2.0`
+- **New optional extras**: `[llm]` (litellm), `[captioning]`, `[reranking]`
+
+### Migration Guide
+
+```python
+# v2: text embeddings
+embeddings, corpus = embedder.load_embedding()
+
+# v3: now returns sparse vectors too
+dense, sparse, corpus = embedder.load_embedding()
+
+# v2: clustering required n_clusters
+clusterer.cluster(n_clusters=5)
+
+# v3: omit for HDBSCAN auto-detection
+clusterer.cluster()  # HDBSCAN
+clusterer.cluster(n_clusters=5)  # KMeans
+
+# v2: RAG with LangChain
+from deep_semantic_search import ask_question
+answer = ask_question(texts, "question")
+
+# v3: RAG with LiteLLM (install deep-semantic-search[llm])
+from deep_semantic_search import RAG
+rag = RAG(rerank=True)
+answer = rag.ask(texts, "question")
+# or use backward-compat wrapper:
+answer = ask_question(texts, "question", llm_fn=my_fn)
+```
+
 ## 2.0.0
 
 ### Breaking Changes

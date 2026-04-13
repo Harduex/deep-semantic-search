@@ -1,20 +1,20 @@
-"""Image similarity search using CLIP + FAISS."""
+"""Image similarity search using SigLIP + USearch."""
 
 import logging
 import math
 
-import faiss
 import numpy as np
 import torch
 from PIL import Image, ImageOps
 
+from .config import DEFAULT_DUPLICATE_THRESHOLD, SIGLIP_IMAGE_SIZE
 from .image_indexer import ImageIndexer
 
 logger = logging.getLogger("deep_semantic_search")
 
 
 class ImageSearcher:
-    """Search for similar images using a pre-built CLIP/FAISS index.
+    """Search for similar images using a pre-built SigLIP/USearch index.
 
     Parameters
     ----------
@@ -28,20 +28,25 @@ class ImageSearcher:
 
     @property
     def _index(self):
-        """Lazy-load and cache the FAISS index."""
+        """Lazy-load and cache the USearch index."""
         if self._cached_index is None:
-            self._cached_index = faiss.read_index(str(self._indexer._index_file))
+            from usearch.index import Index
+
+            self._cached_index = Index.restore(str(self._indexer.index_path))
         return self._cached_index
 
     def _search_by_vector(self, vector: np.ndarray, n: int) -> list[dict]:
-        """Search FAISS index by feature vector."""
-        D, indices = self._index.search(np.array([vector], dtype=np.float32), n)
+        """Search USearch index by feature vector, return cosine similarity scores."""
+        matches = self._index.search(vector.astype(np.float32), n)
         image_data = self._indexer.get_metadata()
-        paths = image_data.iloc[indices[0]]["images_paths"].to_list()
-        return [
-            {"rank": i + 1, "path": p, "score": float(s)}
-            for i, (p, s) in enumerate(zip(paths, D[0].tolist()))
-        ]
+        results = []
+        for i, (key, distance) in enumerate(zip(matches.keys, matches.distances)):
+            results.append({
+                "rank": i + 1,
+                "path": image_data["images_paths"].iloc[int(key)],
+                "score": float(1.0 - distance),
+            })
+        return results
 
     def search_by_image(self, image_path: str, n: int = 10) -> list[dict]:
         """Find images most similar to a query image.
@@ -56,13 +61,13 @@ class ImageSearcher:
         Returns
         -------
         list[dict]
-            List of dicts with keys ``rank``, ``path``, ``score``.
+            List of dicts with keys ``rank``, ``path``, ``score`` (cosine similarity).
         """
         query_vector = self._indexer._extract(Image.open(image_path))
         return self._search_by_vector(query_vector, n)
 
     def search_by_text(self, text: str, n: int = 10) -> list[dict]:
-        """Find images most similar to a text query using CLIP.
+        """Find images most similar to a text query using SigLIP.
 
         Parameters
         ----------
@@ -74,28 +79,49 @@ class ImageSearcher:
         Returns
         -------
         list[dict]
-            List of dicts with keys ``rank``, ``path``, ``score``.
+            List of dicts with keys ``rank``, ``path``, ``score`` (cosine similarity).
         """
-        inputs = self._indexer.processor(text=text, return_tensors="pt")
+        inputs = self._indexer.processor(
+            text=[text],
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=64,
+        )
         inputs = {k: v.to(self._indexer.device) for k, v in inputs.items()}
         with torch.no_grad():
-            text_embeddings = self._indexer.model.get_text_features(**inputs)
-        if hasattr(text_embeddings, "pooler_output"):
-            text_embeddings = text_embeddings.pooler_output
-        text_embeddings = text_embeddings.detach().cpu().numpy()
+            text_features = self._indexer.model.get_text_features(**inputs)
+        if hasattr(text_features, "pooler_output"):
+            text_features = text_features.pooler_output
+        text_vector = text_features.detach().cpu().numpy().flatten()
+        text_vector = text_vector / np.linalg.norm(text_vector)
+        return self._search_by_vector(text_vector, n)
 
+    def find_duplicates(self, threshold: float = DEFAULT_DUPLICATE_THRESHOLD) -> list[tuple[str, str, float]]:
+        """Find near-duplicate image pairs above the similarity threshold.
+
+        Parameters
+        ----------
+        threshold : float
+            Minimum cosine similarity to consider a pair as duplicates.
+
+        Returns
+        -------
+        list[tuple[str, str, float]]
+            Sorted list of (path1, path2, similarity) tuples.
+        """
         image_data = self._indexer.get_metadata()
-        image_embeddings = np.vstack(image_data["features"].values)
-        similarity_scores = np.inner(image_embeddings, text_embeddings).flatten()
-        sorted_indices = np.argsort(similarity_scores)[::-1][:n]
-
-        similar = image_data.iloc[sorted_indices]
-        paths = similar["images_paths"].to_list()
-        scores = similarity_scores[sorted_indices].tolist()
-        return [
-            {"rank": i + 1, "path": p, "score": float(s)}
-            for i, (p, s) in enumerate(zip(paths, scores))
-        ]
+        features = np.vstack(image_data["features"].values).astype(np.float32)
+        paths = image_data["images_paths"].to_list()
+        duplicates = []
+        for i in range(len(features)):
+            matches = self._index.search(features[i], min(len(features), 50))
+            for key, dist in zip(matches.keys, matches.distances):
+                j = int(key)
+                sim = 1.0 - float(dist)
+                if j > i and sim >= threshold:
+                    duplicates.append((paths[i], paths[j], sim))
+        return sorted(duplicates, key=lambda x: -x[2])
 
     def plot_similar_images(self, image_path: str, n: int = 6) -> None:
         """Display a query image and its most similar matches.
@@ -115,8 +141,10 @@ class ImageSearcher:
                 "Install it with: pip install deep-semantic-search[viz]"
             ) from None
 
+        img_size = (SIGLIP_IMAGE_SIZE, SIGLIP_IMAGE_SIZE)
+
         input_img = Image.open(image_path)
-        input_img_resized = ImageOps.fit(input_img, (224, 224), Image.LANCZOS)
+        input_img_resized = ImageOps.fit(input_img, img_size, Image.LANCZOS)
         plt.figure(figsize=(5, 5))
         plt.axis("off")
         plt.title("Input Image", fontsize=18)
@@ -132,7 +160,7 @@ class ImageSearcher:
             fig.add_subplot(grid_size, grid_size, i + 1)
             plt.axis("off")
             img = Image.open(img_list[i])
-            img_resized = ImageOps.fit(img, (224, 224), Image.LANCZOS)
+            img_resized = ImageOps.fit(img, img_size, Image.LANCZOS)
             plt.imshow(img_resized)
         fig.tight_layout()
         fig.subplots_adjust(top=0.93)

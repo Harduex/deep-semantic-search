@@ -3,10 +3,12 @@
 import logging
 
 from .exceptions import (
+    CaptioningError,
     ClusteringError,
     DeepSemanticSearchError,
     EmbeddingError,
     IndexNotFoundError,
+    MigrationError,
     ModelLoadError,
     SearchError,
 )
@@ -27,11 +29,15 @@ try:
 except ImportError:
     pass
 try:
-    from .rag import ask_question
+    from .rag import RAG, ask_question
+except ImportError:
+    pass
+try:
+    from .unified_search import UnifiedIndexer, UnifiedSearcher
 except ImportError:
     pass
 
-__version__ = "2.0.0"
+__version__ = "3.0.0"
 
 __all__ = [
     # Image
@@ -44,7 +50,11 @@ __all__ = [
     "LoadTextData",
     "TextEmbedder",
     "TextSearch",
+    # Unified
+    "UnifiedIndexer",
+    "UnifiedSearcher",
     # RAG
+    "RAG",
     "ask_question",
     # Exceptions
     "DeepSemanticSearchError",
@@ -53,6 +63,8 @@ __all__ = [
     "SearchError",
     "EmbeddingError",
     "ClusteringError",
+    "MigrationError",
+    "CaptioningError",
 ]
 
 # Library best practice: NullHandler so users control logging

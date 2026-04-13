@@ -93,6 +93,8 @@ class TestTextSearch:
         result = runner.invoke(cli, ["text-search", "--help"])
         assert result.exit_code == 0
         assert "--folder" in result.output
+        assert "--rerank" in result.output
+        assert "--hybrid" in result.output
 
     @patch("deep_semantic_search.text_searcher.TextSearch")
     @patch("deep_semantic_search.text_embedder.TextEmbedder")
@@ -121,11 +123,12 @@ class TestImageCluster:
         result = runner.invoke(cli, ["image-cluster", "--help"])
         assert result.exit_code == 0
         assert "--clusters" in result.output
+        assert "--min-cluster-size" in result.output
 
     @patch("deep_semantic_search.image_clusterer.ImageClusterer")
     @patch("deep_semantic_search.image_indexer.ImageIndexer")
     @patch("deep_semantic_search.image_loader.LoadImageData")
-    def test_cluster(self, mock_loader_cls, mock_indexer_cls, mock_clusterer_cls, runner, image_folder):
+    def test_cluster_with_k(self, mock_loader_cls, mock_indexer_cls, mock_clusterer_cls, runner, image_folder):
         mock_loader_cls.return_value.from_folder.return_value = ["img.jpg"]
         mock_indexer_cls.return_value.run_index.return_value = None
 
@@ -136,18 +139,35 @@ class TestImageCluster:
         assert result.exit_code == 0
         assert "nature" in result.output
 
+    @patch("deep_semantic_search.image_clusterer.ImageClusterer")
+    @patch("deep_semantic_search.image_indexer.ImageIndexer")
+    @patch("deep_semantic_search.image_loader.LoadImageData")
+    def test_cluster_hdbscan(self, mock_loader_cls, mock_indexer_cls, mock_clusterer_cls, runner, image_folder):
+        """No -k flag → HDBSCAN auto."""
+        mock_loader_cls.return_value.from_folder.return_value = ["img.jpg"]
+        mock_indexer_cls.return_value.run_index.return_value = None
+
+        result_df = pd.DataFrame({"images_paths": ["img.jpg"], "cluster": [0], "topic": ["cluster_0"]})
+        mock_clusterer_cls.return_value.cluster.return_value = result_df
+
+        result = runner.invoke(cli, ["image-cluster", "-f", image_folder])
+        assert result.exit_code == 0
+        assert "HDBSCAN" in result.output
+
 
 class TestAsk:
     def test_help(self, runner):
         result = runner.invoke(cli, ["ask", "--help"])
         assert result.exit_code == 0
         assert "--folder" in result.output
+        assert "--rerank" in result.output
+        assert "--semantic-chunking" in result.output
 
-    @patch("deep_semantic_search.rag.ask_question")
+    @patch("deep_semantic_search.rag.RAG")
     @patch("deep_semantic_search.text_loader.LoadTextData")
-    def test_ask(self, mock_loader_cls, mock_ask, runner, text_folder):
+    def test_ask(self, mock_loader_cls, mock_rag_cls, runner, text_folder):
         mock_loader_cls.return_value.from_folder.return_value = {"doc.txt": "some content"}
-        mock_ask.return_value = "The answer is 42."
+        mock_rag_cls.return_value.ask.return_value = "The answer is 42."
 
         result = runner.invoke(cli, ["ask", "-f", text_folder, "What is the meaning?"])
         assert result.exit_code == 0
@@ -159,3 +179,35 @@ class TestAsk:
         result = runner.invoke(cli, ["ask", "-f", text_folder, "question"])
         assert result.exit_code != 0
         assert "No text files" in result.output
+
+
+class TestUnifiedSearch:
+    def test_help(self, runner):
+        result = runner.invoke(cli, ["unified-search", "--help"])
+        assert result.exit_code == 0
+        assert "--image-folder" in result.output
+        assert "--text-folder" in result.output
+        assert "--filter" in result.output
+
+    def test_no_folders(self, runner):
+        result = runner.invoke(cli, ["unified-search", "-q", "test"])
+        assert result.exit_code != 0
+
+
+class TestFindDuplicates:
+    def test_help(self, runner):
+        result = runner.invoke(cli, ["find-duplicates", "--help"])
+        assert result.exit_code == 0
+        assert "--threshold" in result.output
+
+    @patch("deep_semantic_search.image_searcher.ImageSearcher")
+    @patch("deep_semantic_search.image_indexer.ImageIndexer")
+    @patch("deep_semantic_search.image_loader.LoadImageData")
+    def test_no_duplicates(self, mock_loader_cls, mock_indexer_cls, mock_searcher_cls, runner, image_folder):
+        mock_loader_cls.return_value.from_folder.return_value = ["img.jpg"]
+        mock_indexer_cls.return_value.run_index.return_value = None
+        mock_searcher_cls.return_value.find_duplicates.return_value = []
+
+        result = runner.invoke(cli, ["find-duplicates", "-f", image_folder])
+        assert result.exit_code == 0
+        assert "No duplicates" in result.output

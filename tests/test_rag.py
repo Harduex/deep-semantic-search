@@ -1,12 +1,9 @@
-"""Tests for RAG ask_question with mocked dependencies."""
-
-import sys
-from unittest.mock import MagicMock, patch
+"""Tests for RAG with mocked BGE-M3 and LiteLLM."""
 
 import pytest
 
 from deep_semantic_search.exceptions import SearchError
-from deep_semantic_search.rag import ask_question
+from deep_semantic_search.rag import RAG, ask_question
 
 
 def test_ask_question_empty_data():
@@ -14,94 +11,48 @@ def test_ask_question_empty_data():
         ask_question([], "What is this?")
 
 
-def test_ask_question_basic():
-    """Test that ask_question runs end-to-end with fully mocked langchain deps."""
-    mock_chroma = MagicMock()
-    mock_retriever = MagicMock()
-    mock_chroma.from_documents.return_value.as_retriever.return_value = mock_retriever
-
-    mock_text_splitters = MagicMock()
-    mock_text_splitters.RecursiveCharacterTextSplitter.return_value.split_documents.return_value = [
-        MagicMock(page_content="chunk")
-    ]
-
-    # Build a mock LCEL chain that returns a real string
-    mock_chain = MagicMock()
-    mock_chain.invoke.return_value = "Test answer"
-
-    mock_prompt = MagicMock()
-    # pipe operators: {dict} | prompt | llm | parser → chain
-    # The final result of all | operations should be mock_chain
-    mock_prompt.__ror__ = MagicMock(
-        return_value=MagicMock(
-            __or__=MagicMock(return_value=MagicMock(__or__=MagicMock(return_value=mock_chain)))
-        )
-    )
-
-    mock_documents = MagicMock()
-    mock_output_parsers = MagicMock()
-    mock_runnables = MagicMock()
-
-    with patch.dict(sys.modules, {
-        "langchain_huggingface": MagicMock(HuggingFaceEmbeddings=MagicMock()),
-        "langchain_chroma": MagicMock(Chroma=mock_chroma),
-        "langchain_text_splitters": mock_text_splitters,
-        "langchain_core.documents": mock_documents,
-        "langchain_core.output_parsers": mock_output_parsers,
-        "langchain_core.runnables": mock_runnables,
-    }), patch("deep_semantic_search.rag._get_default_llm", return_value=MagicMock()), \
-         patch("deep_semantic_search.rag._get_default_prompt", return_value=mock_prompt):
-        result = ask_question(
-            ["Some text data about AI."],
-            "What is AI?",
-        )
-
-    assert result == "Test answer"
-
-
-def test_ask_question_with_custom_llm_fn():
-    """Test that llm_fn callback is accepted and used."""
-    def custom_fn(text):
+def test_rag_ask_with_llm_fn(mock_bge_m3_model):
+    """Test RAG.ask with a custom llm_fn (no LiteLLM needed)."""
+    def custom_fn(prompt):
         return "custom response"
 
-    mock_chroma = MagicMock()
-    mock_retriever = MagicMock()
-    mock_chroma.from_documents.return_value.as_retriever.return_value = mock_retriever
-
-    mock_text_splitters = MagicMock()
-    mock_text_splitters.RecursiveCharacterTextSplitter.return_value.split_documents.return_value = [
-        MagicMock(page_content="chunk")
-    ]
-
-    mock_chain = MagicMock()
-    mock_chain.invoke.return_value = "custom answer"
-
-    mock_prompt = MagicMock()
-    mock_prompt.__ror__ = MagicMock(
-        return_value=MagicMock(
-            __or__=MagicMock(return_value=MagicMock(__or__=MagicMock(return_value=mock_chain)))
-        )
+    rag = RAG()
+    result = rag.ask(
+        text_data=["Machine learning is a subset of AI. Deep learning uses neural networks."],
+        question="What is ML?",
+        llm_fn=custom_fn,
+        semantic_chunking=False,
     )
+    assert result == "custom response"
 
-    mock_documents = MagicMock()
-    mock_output_parsers = MagicMock()
-    mock_runnables = MagicMock()
-    mock_lc_models = MagicMock()
 
-    with patch.dict(sys.modules, {
-        "langchain_huggingface": MagicMock(HuggingFaceEmbeddings=MagicMock()),
-        "langchain_chroma": MagicMock(Chroma=mock_chroma),
-        "langchain_text_splitters": mock_text_splitters,
-        "langchain_core.documents": mock_documents,
-        "langchain_core.output_parsers": mock_output_parsers,
-        "langchain_core.runnables": mock_runnables,
-        "langchain_core.language_models": mock_lc_models,
-        "langchain_core.outputs": MagicMock(),
-    }), patch("deep_semantic_search.rag._get_default_prompt", return_value=mock_prompt):
-        result = ask_question(
-            ["test data"],
-            "question",
-            llm_fn=custom_fn,
-        )
+def test_rag_semantic_chunking(mock_bge_m3_model):
+    """Test that semantic chunking produces chunks."""
+    rag = RAG()
+    chunks = rag._semantic_chunk(
+        ["First sentence. Second sentence. Third sentence about something else."],
+        max_chunk_size=100,
+    )
+    assert isinstance(chunks, list)
+    assert len(chunks) >= 1
 
-    assert result == "custom answer"
+
+def test_rag_fixed_chunking():
+    """Test fixed-size chunking."""
+    rag = RAG()
+    chunks = rag._fixed_chunk(["A" * 100], chunk_size=30)
+    assert len(chunks) == 4  # 100/30 = 3.33 → ceil = 4
+
+
+def test_ask_question_backward_compat(mock_bge_m3_model):
+    """Test backward-compatible ask_question wrapper."""
+    def custom_fn(prompt):
+        return "compat answer"
+
+    result = ask_question(
+        text_data=["Some text about AI."],
+        question="What is AI?",
+        llm_fn=custom_fn,
+        semantic_chunking=False,
+    )
+    assert result == "compat answer"

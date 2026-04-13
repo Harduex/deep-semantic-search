@@ -1,4 +1,4 @@
-"""Image indexing with CLIP embeddings and FAISS."""
+"""Image indexing with SigLIP embeddings and USearch."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import logging
 import os
 from pathlib import Path
 
-import faiss
 import numpy as np
 import pandas as pd
 import torch
@@ -15,11 +14,12 @@ from PIL import Image
 from tqdm import tqdm
 
 from .config import (
-    CLIP_MODEL_DEFAULT,
     DEFAULT_METADATA_DIR,
     IMAGE_DATA_FEATURES_FILE,
     IMAGE_DATA_PATHS_FILE,
-    IMAGE_FEATURES_VECTORS_FILE,
+    IMAGE_USEARCH_INDEX_FILE,
+    SIGLIP_IMAGE_SIZE,
+    SIGLIP_MODEL_DEFAULT,
     get_device,
 )
 from .exceptions import IndexNotFoundError, ModelLoadError
@@ -28,17 +28,17 @@ logger = logging.getLogger("deep_semantic_search")
 
 
 class ImageIndexer:
-    """Indexes images using CLIP embeddings and FAISS for similarity search.
+    """Indexes images using SigLIP embeddings and USearch for similarity search.
 
     Parameters
     ----------
     image_list : list[str]
         Paths to images to index.
     model_name : str
-        HuggingFace CLIP model identifier.
+        HuggingFace SigLIP model identifier.
     metadata_dir : str | Path | None
         Directory for storing index/metadata files.
-        Defaults to ``~/.deep-semantic-search/clip_metadata/{model_name_safe}``.
+        Defaults to ``~/.deep-semantic-search/siglip_metadata/{model_name_safe}``.
     image_count : int | None
         Limit the number of images to index. None means all.
     """
@@ -46,7 +46,7 @@ class ImageIndexer:
     def __init__(
         self,
         image_list: list[str],
-        model_name: str = CLIP_MODEL_DEFAULT,
+        model_name: str = SIGLIP_MODEL_DEFAULT,
         metadata_dir: str | Path | None = None,
         image_count: int | None = None,
     ):
@@ -63,16 +63,17 @@ class ImageIndexer:
         if metadata_dir is not None:
             self._metadata_dir = Path(metadata_dir)
         else:
-            self._metadata_dir = DEFAULT_METADATA_DIR / "clip_metadata" / model_name_safe
+            self._metadata_dir = DEFAULT_METADATA_DIR / "siglip_metadata" / model_name_safe
 
         self._metadata_dir.mkdir(parents=True, exist_ok=True)
 
         self._features_file = self._metadata_dir / IMAGE_DATA_FEATURES_FILE
         self._paths_file = self._metadata_dir / IMAGE_DATA_PATHS_FILE
-        self._index_file = self._metadata_dir / IMAGE_FEATURES_VECTORS_FILE
+        self._index_file = self._metadata_dir / IMAGE_USEARCH_INDEX_FILE
 
-        # Legacy pickle paths for migration
+        # Legacy paths for migration
         self._legacy_features_pkl = self._metadata_dir / "image_data_features.pkl"
+        self._legacy_faiss_idx = self._metadata_dir / "image_features_vectors.idx"
 
         # Lazy model loading
         self._model = None
@@ -81,38 +82,48 @@ class ImageIndexer:
 
         self.image_data: pd.DataFrame = pd.DataFrame()
 
+    @property
+    def index_path(self) -> Path:
+        """Path to the USearch index file."""
+        return self._index_file
+
+    @property
+    def metadata_dir(self) -> Path:
+        """Path to the metadata directory."""
+        return self._metadata_dir
+
     def _load_model(self) -> None:
-        """Load CLIP model and processor."""
+        """Load SigLIP model and processor."""
         if self._model_loaded:
             return
         try:
-            from transformers import CLIPModel, CLIPProcessor
+            from transformers import SiglipModel, SiglipProcessor
 
-            logger.info("Loading CLIP model: %s", self.model_name)
-            self._processor = CLIPProcessor.from_pretrained(self.model_name)
-            self._model = CLIPModel.from_pretrained(self.model_name).to(self.device)
+            logger.info("Loading SigLIP model: %s", self.model_name)
+            self._processor = SiglipProcessor.from_pretrained(self.model_name)
+            self._model = SiglipModel.from_pretrained(self.model_name).to(self.device)
             logger.info("Model loaded successfully: %s", self.model_name)
             self._model_loaded = True
         except Exception as exc:
-            raise ModelLoadError(f"Failed to load CLIP model '{self.model_name}': {exc}") from exc
+            raise ModelLoadError(f"Failed to load SigLIP model '{self.model_name}': {exc}") from exc
 
     @property
     def model(self):
-        """Lazy-loaded CLIP model."""
+        """Lazy-loaded SigLIP model."""
         if not self._model_loaded:
             self._load_model()
         return self._model
 
     @property
     def processor(self):
-        """Lazy-loaded CLIP processor."""
+        """Lazy-loaded SigLIP processor."""
         if not self._model_loaded:
             self._load_model()
         return self._processor
 
     def _extract(self, img: Image.Image) -> np.ndarray:
-        """Extract normalized CLIP feature vector from a single image."""
-        img = img.resize((224, 224)).convert("RGB")
+        """Extract normalized SigLIP feature vector from a single image."""
+        img = img.resize((SIGLIP_IMAGE_SIZE, SIGLIP_IMAGE_SIZE)).convert("RGB")
         inputs = self.processor(images=img, return_tensors="pt", padding=True)
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
         with torch.no_grad():
@@ -150,6 +161,29 @@ class ImageIndexer:
                 logger.warning("Failed to migrate legacy pickle: %s", exc)
         return False
 
+    def _migrate_faiss_index(self) -> bool:
+        """Migrate legacy FAISS .idx index to USearch format."""
+        if self._legacy_faiss_idx.exists() and self._features_file.exists() and not self._index_file.exists():
+            try:
+                features = np.load(self._features_file).astype(np.float32)
+                self._build_usearch_index(features)
+                logger.info("Migrated FAISS index to USearch format.")
+                return True
+            except Exception as exc:
+                logger.warning("Failed to migrate FAISS index: %s", exc)
+        return False
+
+    def _build_usearch_index(self, features: np.ndarray) -> None:
+        """Build and save a USearch index from feature vectors."""
+        from usearch.index import Index
+
+        d = features.shape[1]
+        index = Index(ndim=d, metric="cos", dtype="f32")
+        keys = np.arange(len(features), dtype=np.uint64)
+        index.add(keys, features)
+        index.save(str(self._index_file))
+        logger.info("USearch index saved: %s", self._index_file)
+
     def _build_features(self) -> pd.DataFrame:
         """Extract features and save metadata."""
         image_data = pd.DataFrame()
@@ -177,13 +211,9 @@ class ImageIndexer:
         return image_data
 
     def _build_index(self, image_data: pd.DataFrame) -> None:
-        """Build FAISS index from feature vectors."""
-        d = len(image_data["features"].iloc[0])
-        index = faiss.IndexFlatL2(d)
+        """Build USearch index from feature vectors."""
         features_matrix = np.vstack(image_data["features"].values).astype(np.float32)
-        index.add(features_matrix)
-        faiss.write_index(index, str(self._index_file))
-        logger.info("FAISS index saved: %s", self._index_file)
+        self._build_usearch_index(features_matrix)
 
     def run_index(self, reindex: bool = False) -> None:
         """Build or load the image index.
@@ -198,8 +228,9 @@ class ImageIndexer:
             data = self._build_features()
             self._build_index(data)
         else:
-            # Try migration from legacy format
+            # Try migrations from legacy formats
             self._migrate_legacy_pickle()
+            self._migrate_faiss_index()
             logger.info("Metadata already present at %s, skipping indexing.", self._metadata_dir)
 
         self.image_data = self._load_metadata()
@@ -213,12 +244,16 @@ class ImageIndexer:
             Paths to new images to add.
         """
         if not self._features_file.exists() or not self._index_file.exists():
-            # Try migration first
             if not self._migrate_legacy_pickle():
                 raise IndexNotFoundError("No existing index found. Run run_index() first.")
+            self._migrate_faiss_index()
 
         self.image_data = self._load_metadata()
-        index = faiss.read_index(str(self._index_file))
+
+        from usearch.index import Index
+
+        index = Index.restore(str(self._index_file))
+        next_key = int(index.size)
 
         for path in tqdm(new_image_paths, desc="Adding images"):
             try:
@@ -229,7 +264,8 @@ class ImageIndexer:
 
             new_row = pd.DataFrame({"images_paths": [path], "features": [feature]})
             self.image_data = pd.concat([self.image_data, new_row], axis=0, ignore_index=True)
-            index.add(np.array([feature], dtype=np.float32))
+            index.add(np.uint64(next_key), feature.astype(np.float32))
+            next_key += 1
 
         # Save updated metadata
         paths = self.image_data["images_paths"].to_list()
@@ -237,7 +273,7 @@ class ImageIndexer:
         np.save(self._features_file, features)
         with open(self._paths_file, "w", encoding="utf-8") as f:
             json.dump(paths, f)
-        faiss.write_index(index, str(self._index_file))
+        index.save(str(self._index_file))
         logger.info("Added %d images to index.", len(new_image_paths))
 
     def get_metadata(self) -> pd.DataFrame:

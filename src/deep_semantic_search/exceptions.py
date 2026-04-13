@@ -6,7 +6,7 @@ class DeepSemanticSearchError(Exception):
 
 
 class IndexNotFoundError(DeepSemanticSearchError):
-    """Raised when a FAISS index or metadata file does not exist."""
+    """Raised when a vector index or metadata file does not exist."""
 
 
 class ModelLoadError(DeepSemanticSearchError):
@@ -23,3 +23,11 @@ class EmbeddingError(DeepSemanticSearchError):
 
 class ClusteringError(DeepSemanticSearchError):
     """Raised when a clustering operation fails."""
+
+
+class MigrationError(DeepSemanticSearchError):
+    """Raised when auto-migration of legacy index format fails."""
+
+
+class CaptioningError(DeepSemanticSearchError):
+    """Raised when an image captioning operation fails."""
